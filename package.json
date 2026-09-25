@@ -1,0 +1,41 @@
+{
+  "name": "salesforce-coding-motivator",
+  "displayName": "Salesforce Coding Motivator",
+  "description": "A lightweight motivational companion for Salesforce developers working in VS Code.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:salesforce-coding-motivator.start",
+    "onCommand:salesforce-coding-motivator.stop"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "salesforce-coding-motivator.start",
+        "title": "Salesforce Coding Motivator: Start"
+      },
+      {
+        "command": "salesforce-coding-motivator.stop",
+        "title": "Salesforce Coding Motivator: Stop"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "tsc -p ./ --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/vscode": "^1.95.0",
+    "typescript": "^5.7.2"
+  }
+}
