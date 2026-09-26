@@ -710,7 +710,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const openCompanionViewCommand = vscode.commands.registerCommand(
     'salesforce-coding-motivator.openCompanionView',
     async () => {
-      await vscode.commands.executeCommand('workbench.view.extension.salesforceCodingMotivatorPanel');
+      await vscode.commands.executeCommand('workbench.view.extension.salesforceCodingMotivatorSecondary');
     }
   );
   messageHistory = context.globalState.get<HistoryEntry[]>(historyStorageKey, []);
