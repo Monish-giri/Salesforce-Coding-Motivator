@@ -56,6 +56,10 @@
       {
         "command": "salesforce-coding-motivator.showDeploymentChecklist",
         "title": "Salesforce Coding Motivator: Show Deployment Checklist"
+      },
+      {
+        "command": "salesforce-coding-motivator.deployAndMonitor",
+        "title": "Salesforce Coding Motivator: Deploy Active Source and Monitor"
       }
     ],
     "configuration": {
