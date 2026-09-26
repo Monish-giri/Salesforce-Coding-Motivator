@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { spawn } from 'node:child_process';
 import * as path from 'node:path';
+import { randomBytes } from 'node:crypto';
 
 import {
   detectSalesforceContextFromFilePath,
@@ -212,12 +213,30 @@ function isSalesforceSourceDiagnostic(uri: vscode.Uri, diagnostic: vscode.Diagno
   return !isLanguageServerSetupIssue;
 }
 
-function getWorkspaceErrorCount(): number {
-  return vscode.languages.getDiagnostics()
-    .reduce((count, [uri, diagnostics]) => count + diagnostics.filter((diagnostic) =>
-      diagnostic.severity === vscode.DiagnosticSeverity.Error &&
-      isSalesforceSourceDiagnostic(uri, diagnostic)
-    ).length, 0);
+interface SalesforceSourceError {
+  uri: string;
+  fileName: string;
+  line: number;
+  character: number;
+  message: string;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[character] ?? character);
+}
+
+function getSalesforceSourceErrors(): SalesforceSourceError[] {
+  const errors: SalesforceSourceError[] = [];
+  for (const [uri, diagnostics] of vscode.languages.getDiagnostics()) {
+    for (const diagnostic of diagnostics) {
+      if (diagnostic.severity !== vscode.DiagnosticSeverity.Error || !isSalesforceSourceDiagnostic(uri, diagnostic)) continue;
+      errors.push({ uri: uri.toString(), fileName: vscode.workspace.asRelativePath(uri, false),
+        line: diagnostic.range.start.line + 1, character: diagnostic.range.start.character, message: diagnostic.message });
+    }
+  }
+  return errors.sort((a, b) => a.fileName.localeCompare(b.fileName) || a.line - b.line);
 }
 
 function getDashboardHtml(): string {
@@ -226,7 +245,8 @@ function getDashboardHtml(): string {
   const deployStageLabel = currentSalesforceContext === 'deployment' ? ` • ${describeDeploymentStage(deployStage)}` : '';
   const activeMinutes = getActiveMinutes();
   const companionState = getCompanionState();
-  const workspaceErrorCount = getWorkspaceErrorCount();
+  const sourceErrors = getSalesforceSourceErrors();
+  const workspaceErrorCount = sourceErrors.length;
   const hasError = workspaceErrorCount > 0 || deploymentErrorMessage !== null;
   const mascotState = hasError ? 'sad' : companionState === 'focused' ? 'focused' : companionState === 'streak' ? 'success' : companionState === 'idle' ? 'idle' : 'happy';
   const recentMessages = [...messageHistory].slice(-6).reverse();
@@ -249,6 +269,13 @@ function getDashboardHtml(): string {
       ? `I spotted ${workspaceErrorCount} workspace error${workspaceErrorCount === 1 ? '' : 's'}. Take them one at a time—you’ve got this!`
       : getCurrentDialogueText();
   const speechBubbleMarkup = bubbleText ? buildSpeechBubbleHtml(bubbleText) : '';
+  const nonce = randomBytes(16).toString('base64');
+  const shownErrors = sourceErrors.slice(0, 8);
+  const sourceErrorsHtml = shownErrors.map((error, index) =>
+    '<div class="error-item"><div class="error-heading"><strong>' + escapeHtml(error.fileName) + '</strong><span>Line ' + error.line + '</span></div>' +
+    '<p>' + escapeHtml(error.message) + '</p><button type="button" class="go-to-error" data-error-index="' + index + '">Go to Error</button></div>'
+  ).join('');
+  const sourceErrorData = JSON.stringify(shownErrors).replace(/</g, '\\u003c');
 
   return `
     <!DOCTYPE html>
@@ -256,6 +283,7 @@ function getDashboardHtml(): string {
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${dashboardPanel?.webview.cspSource ?? ''} data:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';" />
         <style>
           body {
             font-family: var(--vscode-font-family);
@@ -353,6 +381,11 @@ function getDashboardHtml(): string {
           }
           ul { margin: 8px 0 0 16px; padding: 0; }
           li { margin-bottom: 6px; }
+          .error-item { border-top: 1px solid var(--vscode-panel-border); padding: 12px 0; }
+          .error-heading { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+          .error-item p { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+          .go-to-error { padding: 6px 10px; border: 0; border-radius: 4px; cursor: pointer; color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
+          .go-to-error:hover { background: var(--vscode-button-hoverBackground); }
         </style>
       </head>
       <body>
@@ -378,12 +411,24 @@ function getDashboardHtml(): string {
           </div>
         </div>
 
+        ${workspaceErrorCount > 0 ? `<div class="card"><h3>Salesforce source errors (${workspaceErrorCount})</h3>${sourceErrorsHtml}${workspaceErrorCount > 8 ? `<p>Showing first 8 of ${workspaceErrorCount} errors.</p>` : ''}</div>` : ''}
+
         ${deploymentChecklistHtml}
 
         <div class="card">
           <h3>Recent messages</h3>
           <ul>${historyHtml}</ul>
         </div>
+        <script nonce="${nonce}">
+          const vscode = acquireVsCodeApi();
+          const sourceErrors = ${sourceErrorData};
+          document.querySelectorAll('[data-error-index]').forEach((button) => {
+            button.addEventListener('click', () => {
+              const error = sourceErrors[Number(button.dataset.errorIndex)];
+              if (error) vscode.postMessage({ type: 'openError', uri: error.uri, line: error.line, character: error.character });
+            });
+          });
+        </script>
       </body>
     </html>
   `;
@@ -797,9 +842,23 @@ export function activate(context: vscode.ExtensionContext): void {
         'salesforceCodingMotivatorDashboard',
         'Salesforce Coding Motivator',
         vscode.ViewColumn.Two,
-        { enableScripts: false }
+        { enableScripts: true }
       );
 
+      dashboardPanel.webview.onDidReceiveMessage(async (message: { type?: string; uri?: string; line?: number; character?: number }) => {
+        if (message.type !== 'openError' || !message.uri) return;
+        try {
+          const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(message.uri));
+          const line = Math.max(0, Math.min((message.line ?? 1) - 1, document.lineCount - 1));
+          const character = Math.min(Math.max(0, message.character ?? 0), document.lineAt(line).text.length);
+          const position = new vscode.Position(line, character);
+          const editor = await vscode.window.showTextDocument(document, { viewColumn: vscode.ViewColumn.One, preview: false });
+          editor.selection = new vscode.Selection(position, position);
+          editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+        } catch (error) {
+          void vscode.window.showErrorMessage(`Unable to open source error: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      });
       dashboardPanel.onDidDispose(() => {
         dashboardPanel = undefined;
       });
