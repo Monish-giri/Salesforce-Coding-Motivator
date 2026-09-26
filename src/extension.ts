@@ -664,6 +664,10 @@ function handleContextChange(document: vscode.TextDocument | undefined): void {
   recordFileActivity(document);
   updateStatusBar();
 
+  // Always refresh the dashboard for the most recently activated editor,
+  // even when notifications are suppressed by their cooldown.
+  updateDashboard();
+
   if (!isRunning) {
     return;
   }
