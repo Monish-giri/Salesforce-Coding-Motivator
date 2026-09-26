@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { detectSalesforceContextFromFilePath, pickMotivationMessage, resolveSessionState, calculateActiveMinutes } from '../core/salesforceLogic';
 import { SessionManager } from '../core/sessionManager';
 import { buildMascotSvg } from '../mascot';
+import { getDialogueTextForContext } from '../dialogue';
 
 test('detectSalesforceContext identifies Apex classes and test classes', () => {
   const apexDoc = { fileName: 'C:/workspace/force-app/main/default/classes/AccountService.cls' } as any;
@@ -90,10 +91,17 @@ test('SessionManager start is idempotent while an active session already exists'
   assert.equal(session.getSessionStartMs(), firstStart);
 });
 
-test('buildMascotSvg renders a local anime-inspired male protagonist mascot', () => {
+test('buildMascotSvg renders the PNG mascot asset for the focused state', () => {
   const svg = buildMascotSvg('focused');
 
-  assert.match(svg, /<svg/);
-  assert.match(svg, /class="mascot.*focused/);
-  assert.match(svg, /hair|face|body/);
+  assert.match(svg, /<img/);
+  assert.match(svg, /media\/mascot\/focused\.png/);
+  assert.match(svg, /alt="Salesforce coding mascot"/);
+});
+
+test('dialogue system returns a context-matched message for the active dashboard state', () => {
+  const message = getDialogueTextForContext('deployment');
+
+  assert.ok(message);
+  assert.match(message, /deploy|Deploy|launch|target/i);
 });

@@ -8,6 +8,7 @@ import {
 import type { MotivationMessage, SalesforceContext } from './core/salesforceLogic';
 import { SessionManager } from './core/sessionManager';
 import { buildMascotSvg } from './mascot';
+import { buildSpeechBubbleHtml, getDialogueTextForContext, pickDialogueMessage, type DialogueContext } from './dialogue';
 
 type SessionState = 'stopped' | 'active' | 'idle';
 type CompanionState = 'ready' | 'focused' | 'streak' | 'idle' | 'break';
@@ -62,6 +63,9 @@ let lastBreakReminderAt: Date | null = null;
 let dashboardPanel: vscode.WebviewPanel | undefined;
 let sessionMilestones = new Set<string>();
 let deployStage: DeploymentStage = 'pre-deploy';
+let activeDialogueKey: string | null = null;
+let lastDialogueAt: number | null = null;
+let currentDialogueText = '';
 
 function getIdleThresholdMs(): number {
   const config = vscode.workspace.getConfiguration('salesforceCodingMotivator');
@@ -96,6 +100,39 @@ function getCompanionState(): CompanionState {
   }
 
   return 'ready';
+}
+
+function resolveDialogueContext(): DialogueContext {
+  switch (currentSalesforceContext) {
+    case 'apex':
+    case 'apex-test':
+    case 'trigger':
+    case 'soql':
+      return 'apex';
+    case 'lwc':
+      return 'lwc';
+    case 'deployment':
+      return 'deployment';
+    case 'metadata':
+      return 'testing';
+    default:
+      return 'general';
+  }
+}
+
+export function getCurrentDialogueText(): string {
+  const now = Date.now();
+  const dialogueContext = resolveDialogueContext();
+  const cooldownElapsed = lastDialogueAt === null || (now - lastDialogueAt) >= 45_000;
+
+  if (!currentDialogueText || !activeDialogueKey || cooldownElapsed) {
+    const nextMessage = pickDialogueMessage(dialogueContext, activeDialogueKey ?? undefined);
+    activeDialogueKey = nextMessage.key;
+    currentDialogueText = nextMessage.text;
+    lastDialogueAt = now;
+  }
+
+  return currentDialogueText;
 }
 
 function storeHistory(): void {
@@ -161,7 +198,12 @@ function getDashboardHtml(): string {
     ? `<div class="card"><h3>Deployment checklist</h3><ul>${getDeploymentChecklistHtml()}</ul></div>`
     : '<div class="card"><h3>Deployment checklist</h3><ul><li>Open a deployment or metadata file to activate deploy guidance.</li></ul></div>';
 
-  const mascotSvg = buildMascotSvg(mascotState);
+  const mascotAssetUri = dashboardPanel
+    ? dashboardPanel.webview.asWebviewUri(vscode.Uri.joinPath(extensionContext!.extensionUri, 'media', 'mascot', `${mascotState}.png`)).toString()
+    : `media/mascot/${mascotState}.png`;
+  const mascotSvg = buildMascotSvg(mascotState, mascotAssetUri);
+  const bubbleText = getCurrentDialogueText();
+  const speechBubbleMarkup = bubbleText ? buildSpeechBubbleHtml(bubbleText) : '';
 
   return `
     <!DOCTYPE html>
@@ -197,12 +239,65 @@ function getDashboardHtml(): string {
             display: flex;
             align-items: center;
             justify-content: center;
+            gap: 12px;
             padding: 12px 0 20px;
+            flex-wrap: nowrap;
           }
-          .mascot-wrap svg {
+          .mascot-wrap img {
             width: 180px;
-            height: 200px;
-            filter: drop-shadow(0 10px 18px rgba(79, 124, 255, 0.2));
+            height: auto;
+            max-height: 220px;
+            object-fit: contain;
+            display: block;
+            margin: 0 auto;
+            filter: drop-shadow(0 10px 18px rgba(79, 124, 255, 0.18));
+          }
+          .speech-bubble {
+            position: relative;
+            display: inline-block;
+            width: min(150px, 28vw);
+            max-width: 150px;
+            background: #ffffff;
+            color: #1f2937;
+            border: 2px solid #334155;
+            border-radius: 14px;
+            padding: 7px 9px;
+            font-size: 12px;
+            line-height: 1.35;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+            margin: 0 10px 0 0;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            white-space: normal;
+          }
+          .speech-bubble__tail {
+            position: absolute;
+            right: -10px;
+            top: 50%;
+            width: 15px;
+            height: 15px;
+            background: #ffffff;
+            border-right: 2px solid #334155;
+            border-bottom: 2px solid #334155;
+            transform: translateY(-50%) rotate(-45deg);
+          }
+          @media (max-width: 520px) {
+            .mascot-wrap {
+              flex-direction: column;
+              gap: 8px;
+            }
+            .speech-bubble {
+              width: min(170px, 72vw);
+              max-width: 170px;
+              margin: 0 0 8px;
+            }
+            .speech-bubble__tail {
+              left: 50%;
+              right: auto;
+              top: auto;
+              bottom: -11px;
+              transform: translateX(-50%) rotate(45deg);
+            }
           }
           ul { margin: 8px 0 0 16px; padding: 0; }
           li { margin-bottom: 6px; }
@@ -219,6 +314,7 @@ function getDashboardHtml(): string {
         </div>
 
         <div class="card mascot-wrap">
+          ${speechBubbleMarkup}
           ${mascotSvg}
         </div>
 
