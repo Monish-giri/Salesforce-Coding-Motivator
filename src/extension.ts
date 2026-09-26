@@ -72,6 +72,9 @@ let lastDialogueAt: number | null = null;
 let currentDialogueText = '';
 let deploymentErrorMessage: string | null = null;
 let deploymentOutput: vscode.OutputChannel | undefined;
+let companionMessage = 'Ready when you are!';
+let companionMessageTimer: NodeJS.Timeout | undefined;
+let lastDiagnosticSignature = '';
 
 function getIdleThresholdMs(): number {
   const config = vscode.workspace.getConfiguration('salesforceCodingMotivator');
@@ -674,7 +677,7 @@ function triggerMotivation(activeMinutes: number): void {
   lastMotivationAt = now;
   lastMotivationContext = currentSalesforceContext;
   appendToHistory(`${candidate.text} (${describeSalesforceContext(currentSalesforceContext)})`);
-  void vscode.window.showInformationMessage(candidate.text);
+  showCompanionMessage(candidate.text);
 }
 
 function triggerDeploymentMotivation(): void {
@@ -714,34 +717,30 @@ function checkForMotivation(): void {
   triggerMotivation(activeMinutes);
 }
 
-function updateStatusBar(): void {
+function showCompanionMessage(message: string, durationMs = 8_000): void {
+  companionMessage = message;
+  if (companionMessageTimer) clearTimeout(companionMessageTimer);
+  updateStatusBar(true);
+  companionMessageTimer = setTimeout(() => {
+    companionMessage = 'Ready when you are!';
+    companionMessageTimer = undefined;
+    updateStatusBar();
+  }, durationMs);
+}
+
+function updateStatusBar(showMessage = false): void {
   if (!statusBarItem) {
     return;
   }
 
   const contextLabel = describeSalesforceContext(currentSalesforceContext);
   const companionState = getCompanionState();
-  const moodIcon = companionState === 'streak' ? '$(flame)' : companionState === 'focused' ? '$(zap)' : companionState === 'idle' ? '$(watch)' : '$(rocket)';
   const deploymentSuffix = currentSalesforceContext === 'deployment' ? ` • ${describeDeploymentStage(deployStage)}` : '';
-
-  switch (currentState) {
-    case 'active':
-      statusBarItem.text = `${moodIcon} Salesforce Motivator • ${contextLabel}${deploymentSuffix}`;
-      statusBarItem.tooltip = `Salesforce Coding Motivator is active: ${contextLabel}${deploymentSuffix} (${companionState})`;
-      statusBarItem.command = 'salesforce-coding-motivator.stop';
-      break;
-    case 'idle':
-      statusBarItem.text = `$(watch) Salesforce Motivator • ${contextLabel}${deploymentSuffix}`;
-      statusBarItem.tooltip = `Salesforce Coding Motivator is idle: ${contextLabel}${deploymentSuffix} (${companionState})`;
-      statusBarItem.command = 'salesforce-coding-motivator.start';
-      break;
-    default:
-      statusBarItem.text = '$(debug-pause) Salesforce Motivator';
-      statusBarItem.tooltip = 'Salesforce Coding Motivator is stopped';
-      statusBarItem.command = 'salesforce-coding-motivator.start';
-      break;
-  }
-
+  const pet = '🐣';
+  const baseLabel = currentState === 'stopped' ? 'Motivator' : currentState === 'idle' ? 'Motivator • idle' : `Motivator • ${contextLabel}${deploymentSuffix}`;
+  statusBarItem.text = showMessage ? `${pet} ${companionMessage.slice(0, 42)}` : `${pet} ${baseLabel}`;
+  statusBarItem.tooltip = `${companionMessage}\nClick to open companion actions.\nStatus: ${currentState}; mood: ${companionState}`;
+  statusBarItem.command = 'salesforce-coding-motivator.openCompanionMenu';
   statusBarItem.show();
 }
 
@@ -799,14 +798,49 @@ export function activate(context: vscode.ExtensionContext): void {
     startTracking();
     markActivity();
     appendToHistory('Salesforce Coding Motivator started.');
-    void vscode.window.showInformationMessage('⚡ Salesforce Coding Motivator is ready. Let\'s code!');
+    showCompanionMessage('Let\'s code! I\'m here with you.');
   });
 
   const stopCommand = vscode.commands.registerCommand('salesforce-coding-motivator.stop', () => {
     isRunning = false;
     stopTracking();
     appendToHistory('Salesforce Coding Motivator stopped.');
-    void vscode.window.showInformationMessage('🛑 Salesforce Coding Motivator stopped.');
+    showCompanionMessage('Taking a break? I\'ll be here when you return.');
+  });
+
+  const companionMenuCommand = vscode.commands.registerCommand('salesforce-coding-motivator.openCompanionMenu', async () => {
+    const action = await vscode.window.showQuickPick([
+      { label: '$(comment-discussion) Show companion message', description: companionMessage, value: 'message' },
+      { label: '$(dashboard) Open detailed dashboard', value: 'dashboard' },
+      { label: isRunning ? '$(debug-stop) Stop motivator session' : '$(play) Start motivator session', value: 'toggle' },
+      { label: '$(bug) Show Salesforce source errors', value: 'errors' },
+    ], { placeHolder: 'Salesforce Coding Motivator' });
+    if (!action) return;
+    if (action.value === 'dashboard') {
+      await vscode.commands.executeCommand('salesforce-coding-motivator.openDashboard');
+    } else if (action.value === 'toggle') {
+      await vscode.commands.executeCommand(isRunning ? 'salesforce-coding-motivator.stop' : 'salesforce-coding-motivator.start');
+    } else if (action.value === 'errors') {
+      const errors = getSalesforceSourceErrors();
+      if (!errors.length) {
+        void vscode.window.showInformationMessage('No Salesforce source errors detected.');
+      } else {
+        const selected = await vscode.window.showQuickPick(errors.map((error) => ({
+          label: `${error.fileName} • Line ${error.line}`,
+          description: error.message,
+          error,
+        })), { placeHolder: 'Select an error to open its source location' });
+        if (selected) {
+          const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(selected.error.uri));
+          const position = new vscode.Position(selected.error.line - 1, selected.error.character);
+          const editor = await vscode.window.showTextDocument(document, { preview: false });
+          editor.selection = new vscode.Selection(position, position);
+          editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+        }
+      }
+    } else {
+      void vscode.window.showInformationMessage(companionMessage);
+    }
   });
 
   const showHistoryCommand = vscode.commands.registerCommand('salesforce-coding-motivator.showHistory', () => {
@@ -869,7 +903,13 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   const diagnosticsListener = vscode.languages.onDidChangeDiagnostics(() => {
-    // React to editor diagnostics only; terminal output and deployment logs are not diagnostics.
+    const errors = getSalesforceSourceErrors();
+    const signature = errors.map((error) => `${error.uri}:${error.line}:${error.message}`).join('|');
+    if (signature !== lastDiagnosticSignature) {
+      lastDiagnosticSignature = signature;
+      if (errors.length > 0) showCompanionMessage(`Found ${errors.length} Salesforce source error${errors.length === 1 ? '' : 's'}. Click for details.`);
+      else if (signature === '') showCompanionMessage('Source errors cleared. Nice work!');
+    }
     updateDashboard();
   });
 
@@ -977,7 +1017,7 @@ export function activate(context: vscode.ExtensionContext): void {
         deploymentErrorMessage = null;
         deploymentOutput?.appendLine('\nDeployment command completed successfully.');
         appendToHistory(`Deployment succeeded: ${sourceLabel}`);
-        void vscode.window.showInformationMessage('Salesforce deployment succeeded.');
+        showCompanionMessage('Deployment succeeded! Nice work.');
       } else {
         const combined = `${stdout}\n${stderr}`.trim();
         let summary = `Salesforce CLI exited with code ${code ?? 'unknown'}.`;
@@ -988,7 +1028,7 @@ export function activate(context: vscode.ExtensionContext): void {
         deploymentErrorMessage = summary.slice(0, 180);
         deploymentOutput?.appendLine(`\nDeployment failed: ${summary}`);
         appendToHistory(`Deployment failed: ${summary}`);
-        void vscode.window.showErrorMessage('Salesforce deployment failed. See Salesforce Deployment Monitor output for details.');
+        showCompanionMessage(`Deployment failed: ${deploymentErrorMessage}. Click for details.`, 15_000);
       }
       updateDashboard();
     });
@@ -1015,6 +1055,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     startCommand,
     stopCommand,
+    companionMenuCommand,
     showHistoryCommand,
     showSessionSummaryCommand,
     showDashboardCommand,
