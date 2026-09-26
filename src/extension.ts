@@ -49,6 +49,7 @@ const deploymentChecklistByStage: Record<DeploymentStage, string[]> = {
 let isRunning = false;
 let currentState: SessionState = 'stopped';
 let statusBarItem: vscode.StatusBarItem | undefined;
+let companionView: vscode.WebviewView | undefined;
 let sessionStart: Date | null = null;
 let lastActivityAt: Date | null = null;
 let idleTimer: NodeJS.Timeout | undefined;
@@ -72,6 +73,108 @@ let deploymentOutput: vscode.OutputChannel | undefined;
 let companionMessage = 'Ready when you are!';
 let companionMessageTimer: NodeJS.Timeout | undefined;
 let lastDiagnosticSignature = '';
+
+function getMascotStateForView(): string {
+  if (getSalesforceSourceErrors().length > 0) return 'sad';
+  if (currentSalesforceContext === 'deployment') return deploymentErrorMessage ? 'sad' : 'deployment';
+  if (currentState === 'idle') return 'sleep';
+  if (currentState === 'active') return getCompanionState() === 'focused' ? 'focused' : 'happy';
+  return 'idle';
+}
+
+function updateCompanionView(): void {
+  if (!companionView) return;
+  void companionView.webview.postMessage({
+    type: 'update',
+    state: getMascotStateForView(),
+    message: companionMessage,
+    context: describeSalesforceContext(currentSalesforceContext),
+    session: currentState,
+    errorCount: getSalesforceSourceErrors().length,
+  });
+}
+
+class MotivatorCompanionViewProvider implements vscode.WebviewViewProvider {
+  constructor(private readonly extensionUri: vscode.Uri) {}
+
+  resolveWebviewView(view: vscode.WebviewView): void {
+    companionView = view;
+    view.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
+    };
+    view.webview.html = this.getHtml(view.webview);
+    view.onDidDispose(() => {
+      if (companionView === view) companionView = undefined;
+    });
+    view.webview.onDidReceiveMessage((message: { command?: string }) => {
+      if (message.command === 'start') void vscode.commands.executeCommand('salesforce-coding-motivator.start');
+      if (message.command === 'stop') void vscode.commands.executeCommand('salesforce-coding-motivator.stop');
+      if (message.command === 'errors') void showSalesforceErrorPicker();
+    });
+    updateCompanionView();
+  }
+
+  private getHtml(webview: vscode.Webview): string {
+    const nonce = Date.now().toString(36);
+    const assets = ['idle', 'focused', 'happy', 'success', 'deployment', 'sleep', 'sad'];
+    const imageUris = Object.fromEntries(assets.map((state) => [
+      state,
+      webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'mascot', `${state}.png`)).toString(),
+    ]));
+    const csp = `default-src 'none'; img-src ${webview.cspSource}; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';`;
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="${csp}">
+<style nonce="${nonce}">
+  body { margin:0; padding:12px; color:var(--vscode-foreground); background:var(--vscode-sideBar-background); font-family:var(--vscode-font-family); }
+  .stage { display:flex; align-items:flex-end; justify-content:center; gap:10px; min-height:180px; }
+  .mascot { width:min(58%, 180px); max-height:190px; object-fit:contain; }
+  .bubble { position:relative; align-self:center; max-width:65%; padding:11px 13px; border:1px solid var(--vscode-widget-border); border-radius:14px; background:var(--vscode-editorWidget-background); color:var(--vscode-editorWidget-foreground); box-shadow:0 3px 12px #0002; font-size:12px; line-height:1.45; overflow-wrap:anywhere; }
+  .bubble:after { content:''; position:absolute; left:-7px; bottom:22px; width:12px; height:12px; transform:rotate(45deg); background:var(--vscode-editorWidget-background); border-left:1px solid var(--vscode-widget-border); border-bottom:1px solid var(--vscode-widget-border); }
+  .meta { display:flex; justify-content:center; gap:6px; flex-wrap:wrap; margin:8px 0 12px; font-size:11px; color:var(--vscode-descriptionForeground); }
+  .pill { border:1px solid var(--vscode-widget-border); border-radius:20px; padding:4px 8px; }
+  .actions { display:flex; justify-content:center; gap:8px; }
+  button { border:1px solid var(--vscode-button-border, transparent); border-radius:4px; padding:6px 10px; color:var(--vscode-button-foreground); background:var(--vscode-button-background); cursor:pointer; }
+  button.secondary { color:var(--vscode-button-secondaryForeground); background:var(--vscode-button-secondaryBackground); }
+  button:hover { background:var(--vscode-button-hoverBackground); }
+</style>
+</head>
+<body>
+  <main>
+    <div class="stage">
+      <div id="bubble" class="bubble" role="status" aria-live="polite">Ready when you are!</div>
+      <img id="mascot" class="mascot" src="${imageUris.idle}" alt="Salesforce coding mascot">
+    </div>
+    <div class="meta"><span id="context" class="pill">Context: General</span><span id="session" class="pill">Session: stopped</span><span id="errors" class="pill">Errors: 0</span></div>
+    <div class="actions"><button id="toggle">Start session</button><button id="errorsButton" class="secondary">View errors</button></div>
+  </main>
+<script nonce="${nonce}">
+  const vscode = acquireVsCodeApi();
+  const images = ${JSON.stringify(imageUris)};
+  const mascot = document.getElementById('mascot');
+  const bubble = document.getElementById('bubble');
+  const toggle = document.getElementById('toggle');
+  window.addEventListener('message', event => {
+    const data = event.data;
+    if (data.type !== 'update') return;
+    mascot.src = images[data.state] || images.idle;
+    bubble.textContent = data.message || 'Ready when you are!';
+    document.getElementById('context').textContent = 'Context: ' + data.context;
+    document.getElementById('session').textContent = 'Session: ' + data.session;
+    document.getElementById('errors').textContent = 'Errors: ' + data.errorCount;
+    toggle.textContent = data.session === 'active' || data.session === 'idle' ? 'Stop session' : 'Start session';
+  });
+  toggle.addEventListener('click', () => vscode.postMessage({ command: toggle.textContent.startsWith('Stop') ? 'stop' : 'start' }));
+  document.getElementById('errorsButton').addEventListener('click', () => vscode.postMessage({ command: 'errors' }));
+</script>
+</body>
+</html>`;
+  }
+}
 
 function getIdleThresholdMs(): number {
   const config = vscode.workspace.getConfiguration('salesforceCodingMotivator');
@@ -157,6 +260,11 @@ function storeHistory(): void {
 function renderHistory(): void {
   if (!historyChannel) {
     historyChannel = vscode.window.createOutputChannel('Salesforce Coding Motivator');
+  const companionProvider = new MotivatorCompanionViewProvider(context.extensionUri);
+  const companionViewRegistration = vscode.window.registerWebviewViewProvider('salesforceCodingMotivator.companionView', companionProvider, { webviewOptions: { retainContextWhenHidden: true } });
+  const openCompanionViewCommand = vscode.commands.registerCommand('salesforce-coding-motivator.openCompanionView', async () => {
+    await vscode.commands.executeCommand('workbench.view.extension.salesforceCodingMotivator');
+  });
   }
 
   historyChannel.clear();
@@ -533,10 +641,12 @@ function showCompanionMessage(message: string, durationMs = 8_000): void {
   companionMessage = message;
   if (companionMessageTimer) clearTimeout(companionMessageTimer);
   updateStatusBar(true);
+  updateCompanionView();
   companionMessageTimer = setTimeout(() => {
     companionMessage = 'Ready when you are!';
     companionMessageTimer = undefined;
     updateStatusBar();
+    updateCompanionView();
   }, durationMs);
 }
 
@@ -552,8 +662,9 @@ function updateStatusBar(showMessage = false): void {
   const baseLabel = currentState === 'stopped' ? 'Motivator' : currentState === 'idle' ? 'Motivator • idle' : `Motivator • ${contextLabel}${deploymentSuffix}`;
   statusBarItem.text = showMessage ? `${pet} ${companionMessage.slice(0, 42)}` : `${pet} ${baseLabel}`;
   statusBarItem.tooltip = `${companionMessage}\nClick to open companion actions.\nStatus: ${currentState}; mood: ${companionState}`;
-  statusBarItem.command = 'salesforce-coding-motivator.openCompanionMenu';
+  statusBarItem.command = 'salesforce-coding-motivator.openCompanionView';
   statusBarItem.show();
+  updateCompanionView();
 }
 
 function handleContextChange(document: vscode.TextDocument | undefined): void {
@@ -667,6 +778,7 @@ export function activate(context: vscode.ExtensionContext): void {
     if (signature === lastDiagnosticSignature) return;
     const hadErrors = lastDiagnosticSignature.length > 0;
     lastDiagnosticSignature = signature;
+    updateCompanionView();
     if (errors.length > 0) {
       const first = errors[0];
       showCompanionMessage(`Found ${errors.length} Salesforce source error${errors.length === 1 ? '' : 's'}. Click for details.`);
@@ -815,6 +927,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     startCommand,
+    companionViewRegistration,
+    openCompanionViewCommand,
     stopCommand,
     companionMenuCommand,
     showHistoryCommand,
