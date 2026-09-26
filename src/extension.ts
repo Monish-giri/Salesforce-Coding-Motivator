@@ -7,6 +7,7 @@ import {
 } from './core/salesforceLogic';
 import type { MotivationMessage, SalesforceContext } from './core/salesforceLogic';
 import { SessionManager } from './core/sessionManager';
+import { buildMascotSvg } from './mascot';
 
 type SessionState = 'stopped' | 'active' | 'idle';
 type CompanionState = 'ready' | 'focused' | 'streak' | 'idle' | 'break';
@@ -149,6 +150,7 @@ function getDashboardHtml(): string {
   const deployStageLabel = currentSalesforceContext === 'deployment' ? ` • ${describeDeploymentStage(deployStage)}` : '';
   const activeMinutes = getActiveMinutes();
   const companionState = getCompanionState();
+  const mascotState = companionState === 'focused' ? 'focused' : companionState === 'streak' ? 'success' : companionState === 'idle' ? 'idle' : 'happy';
   const recentMessages = [...messageHistory].slice(-6).reverse();
 
   const historyHtml = recentMessages.length > 0
@@ -158,6 +160,8 @@ function getDashboardHtml(): string {
   const deploymentChecklistHtml = currentSalesforceContext === 'deployment'
     ? `<div class="card"><h3>Deployment checklist</h3><ul>${getDeploymentChecklistHtml()}</ul></div>`
     : '<div class="card"><h3>Deployment checklist</h3><ul><li>Open a deployment or metadata file to activate deploy guidance.</li></ul></div>';
+
+  const mascotSvg = buildMascotSvg(mascotState);
 
   return `
     <!DOCTYPE html>
@@ -189,6 +193,17 @@ function getDashboardHtml(): string {
             padding: 4px 10px;
             font-size: 12px;
           }
+          .mascot-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 0 20px;
+          }
+          .mascot-wrap svg {
+            width: 180px;
+            height: 200px;
+            filter: drop-shadow(0 10px 18px rgba(79, 124, 255, 0.2));
+          }
           ul { margin: 8px 0 0 16px; padding: 0; }
           li { margin-bottom: 6px; }
         </style>
@@ -201,6 +216,10 @@ function getDashboardHtml(): string {
             <span class="pill">Mood: ${companionState}</span>
             <span class="pill">Context: ${contextLabel}${deployStageLabel}</span>
           </div>
+        </div>
+
+        <div class="card mascot-wrap">
+          ${mascotSvg}
         </div>
 
         <div class="card">
@@ -437,25 +456,18 @@ function triggerMotivation(activeMinutes: number): void {
   const isEnabled = config.get<boolean>('enabled', true);
   const cooldownMinutes = config.get<number>('messageCooldownMinutes', 1);
 
-  if (!isEnabled || !sessionStart || !lastActivityAt) {
+  if (!isEnabled || !isRunning || !sessionStart || !lastActivityAt || currentState !== 'active') {
     return;
   }
 
   const now = new Date();
   const candidate = getContextualMessage(activeMinutes);
 
-  if (!candidate) {
+  if (!candidate || currentSalesforceContext === 'unknown') {
     return;
   }
 
   const isDeploymentContext = currentSalesforceContext === 'deployment';
-  if (!isDeploymentContext && (!isRunning || currentState !== 'active')) {
-    return;
-  }
-
-  if (!candidate) {
-    return;
-  }
 
   if (lastMotivationAt && lastMotivationContext === currentSalesforceContext) {
     const elapsedMinutes = (now.getTime() - lastMotivationAt.getTime()) / 60_000;
@@ -539,18 +551,26 @@ function updateStatusBar(): void {
 }
 
 function handleContextChange(document: vscode.TextDocument | undefined): void {
-  currentSalesforceContext = detectSalesforceContext(document);
+  const nextContext = detectSalesforceContext(document);
+  currentSalesforceContext = nextContext;
   updateDeploymentStageFromContext(currentSalesforceContext);
   recordFileActivity(document);
   updateStatusBar();
+
+  if (!isRunning) {
+    return;
+  }
+
   markActivity();
 
-  if (isRunning && currentSalesforceContext !== 'unknown') {
-    if (currentSalesforceContext === 'deployment') {
-      triggerDeploymentMotivation();
-    } else {
-      triggerMotivation(0);
-    }
+  if (currentSalesforceContext === 'unknown') {
+    return;
+  }
+
+  if (currentSalesforceContext === 'deployment') {
+    triggerDeploymentMotivation();
+  } else {
+    triggerMotivation(0);
   }
 }
 

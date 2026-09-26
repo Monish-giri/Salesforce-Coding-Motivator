@@ -1,31 +1,84 @@
 # Salesforce Coding Motivator
 
-A lightweight VS Code extension for Salesforce developers that provides simple motivational encouragement while coding.
+A lightweight, local-first VS Code extension for Salesforce developers who want a small motivational companion while they work in Apex, LWC, metadata, and deployment workflows.
 
-## Current status
+## What it does
 
-This is the initial foundation milestone.
+- Detects common Salesforce file contexts such as Apex, Apex tests, triggers, SOQL, LWC/Aura paths, and deployment metadata
+- Tracks active coding time and idle periods
+- Shows contextual encouragement based on the active Salesforce workload
+- Keeps a small local history of session activity
+- Exposes a dashboard and deployment checklist for quick status checks
+- Operates without external AI services or cloud dependencies
 
-- Extension activates successfully.
-- Includes `Salesforce Coding Motivator: Start` and `Salesforce Coding Motivator: Stop` commands.
-- Start shows a simple notification.
+## Current implementation status
 
-## Development
+The project is currently at the core reliability and local UX stage.
+
+Implemented features include:
+- extension activation and command registration
+- start/stop session lifecycle
+- idle and active session tracking
+- local history storage using VS Code global state
+- basic dashboard and status bar updates
+- Salesforce context detection for key file patterns
+- deployment workflow prompts and checklist guidance
+- automated tests for core logic and session transitions
+
+## Privacy and constraints
+
+This extension is intentionally local-first and does not require:
+- paid APIs
+- external services
+- AI integrations
+- telemetry
+- backend infrastructure
+
+It stores small local session information in VS Code state only.
+
+## Installation and local development
 
 ```bash
 npm install
 npm run compile
+npm test
 ```
 
 ## Run in VS Code
 
-1. Open the project in VS Code.
+1. Open this project in VS Code.
 2. Press `F5` to launch the Extension Development Host.
-3. Press `Ctrl+Shift+P` and run `Salesforce Coding Motivator: Start`.
+3. Open a Salesforce-related file or use the command palette.
+4. Run one of the available commands:
+   - Salesforce Coding Motivator: Start
+   - Salesforce Coding Motivator: Stop
+   - Salesforce Coding Motivator: Show Old Chat
+   - Salesforce Coding Motivator: Show Session Summary
+   - Salesforce Coding Motivator: Open Dashboard
+   - Salesforce Coding Motivator: Trigger Deployment Message
+   - Salesforce Coding Motivator: Show Deployment Checklist
+
+## Configuration
+
+The extension exposes a small set of settings under the namespace `salesforceCodingMotivator`:
+
+- `enabled` — enable or disable motivational notifications
+- `debugTestMode` — shorter thresholds for local validation
+- `messageCooldownMinutes` — cooldown between repeated messages
+- `idleThresholdMinutes` — minutes of inactivity before session is marked idle
+- `breakReminderMinutes` — reminder interval for idle breaks
+
+## Known limitations
+
+- Context detection is heuristic and based on local file paths and project structure
+- It does not claim to monitor every Salesforce operation with guaranteed certainty
+- It is not yet a full visual mascot product or a public Marketplace release
+- It does not attempt to execute Salesforce CLI commands or access org data automatically
 
 ## Roadmap
 
-- Salesforce development detection
-- coding session tracking
-- motivation engine
-- companion UI
+- strengthen the core session lifecycle and guardrails
+- improve context detection reliability
+- review mascot and companion UX direction
+- polish dashboard and user experience
+- prepare packaging and public release documentation

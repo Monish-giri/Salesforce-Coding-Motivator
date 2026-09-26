@@ -26,6 +26,10 @@ export class SessionManager {
   }
 
   markActivity(now: number = Date.now()): void {
+    if (this.currentState === 'stopped') {
+      return;
+    }
+
     if (!this.sessionStartMs) {
       this.sessionStartMs = now;
     }
@@ -53,7 +57,7 @@ export class SessionManager {
   }
 
   tick(now: number = Date.now()): SessionState {
-    if (!this.lastActivityMs) {
+    if (this.currentState === 'stopped' || !this.lastActivityMs) {
       return this.currentState;
     }
 
