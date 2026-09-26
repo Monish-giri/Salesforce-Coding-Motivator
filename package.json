@@ -60,6 +60,10 @@
       {
         "command": "salesforce-coding-motivator.deployAndMonitor",
         "title": "Salesforce Coding Motivator: Deploy Active Source and Monitor"
+      },
+      {
+        "command": "salesforce-coding-motivator.openCompanionMenu",
+        "title": "Salesforce Coding Motivator: Open Companion"
       }
     ],
     "configuration": {
