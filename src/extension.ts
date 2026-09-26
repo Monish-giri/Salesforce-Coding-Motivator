@@ -260,11 +260,6 @@ function storeHistory(): void {
 function renderHistory(): void {
   if (!historyChannel) {
     historyChannel = vscode.window.createOutputChannel('Salesforce Coding Motivator');
-  const companionProvider = new MotivatorCompanionViewProvider(context.extensionUri);
-  const companionViewRegistration = vscode.window.registerWebviewViewProvider('salesforceCodingMotivator.companionView', companionProvider, { webviewOptions: { retainContextWhenHidden: true } });
-  const openCompanionViewCommand = vscode.commands.registerCommand('salesforce-coding-motivator.openCompanionView', async () => {
-    await vscode.commands.executeCommand('workbench.view.extension.salesforceCodingMotivatorPanel');
-  });
   }
 
   historyChannel.clear();
@@ -704,6 +699,18 @@ export function activate(context: vscode.ExtensionContext): void {
   extensionContext = context;
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   historyChannel = vscode.window.createOutputChannel('Salesforce Coding Motivator');
+  const companionProvider = new MotivatorCompanionViewProvider(context.extensionUri);
+  const companionViewRegistration = vscode.window.registerWebviewViewProvider(
+    'salesforceCodingMotivator.companionView',
+    companionProvider,
+    { webviewOptions: { retainContextWhenHidden: true } }
+  );
+  const openCompanionViewCommand = vscode.commands.registerCommand(
+    'salesforce-coding-motivator.openCompanionView',
+    async () => {
+      await vscode.commands.executeCommand('workbench.view.extension.salesforceCodingMotivatorPanel');
+    }
+  );
   messageHistory = context.globalState.get<HistoryEntry[]>(historyStorageKey, []);
   renderHistory();
   refreshCurrentContext();
