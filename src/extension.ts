@@ -401,10 +401,7 @@ function getDashboardHtml(): string {
           </div>
         </div>
 
-        <div class="card mascot-wrap">
-          ${speechBubbleMarkup}
-          ${mascotSvg}
-        </div>
+        <div class="card"><strong>Companion:</strong> Your mascot is available from the bottom-right status bar.</div>
 
         <div class="card">
           <h3>Session</h3>
@@ -705,7 +702,7 @@ function triggerDeploymentMotivation(): void {
   lastMotivationAt = now;
   lastMotivationContext = 'deployment';
   appendToHistory(`${candidate.text} (${describeSalesforceContext('deployment')})`);
-  void vscode.window.showInformationMessage(candidate.text);
+  showCompanionMessage(candidate.text);
 }
 
 function checkForMotivation(): void {
