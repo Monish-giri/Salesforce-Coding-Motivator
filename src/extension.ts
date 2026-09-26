@@ -77,7 +77,7 @@ let lastDiagnosticSignature = '';
 function getMascotStateForView(): string {
   if (getSalesforceSourceErrors().length > 0) return 'sad';
   if (currentSalesforceContext === 'deployment') return deploymentErrorMessage ? 'sad' : 'deployment';
-  if (currentState === 'idle') return 'sleep';
+  if (currentState === 'idle') return 'idle';
   if (currentState === 'active') return getCompanionState() === 'focused' ? 'focused' : 'happy';
   return 'idle';
 }
@@ -117,7 +117,7 @@ class MotivatorCompanionViewProvider implements vscode.WebviewViewProvider {
 
   private getHtml(webview: vscode.Webview): string {
     const nonce = Date.now().toString(36);
-    const assets = ['idle', 'focused', 'happy', 'success', 'deployment', 'sleep', 'sad'];
+    const assets = ['idle', 'focused', 'happy', 'success', 'deployment', 'sad'];
     const imageUris = Object.fromEntries(assets.map((state) => [
       state,
       webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'mascot', `${state}.png`)).toString(),
