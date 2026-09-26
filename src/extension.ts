@@ -192,8 +192,11 @@ function getDeploymentChecklistHtml(): string {
 }
 
 function isSalesforceSourceDiagnostic(uri: vscode.Uri, diagnostic: vscode.Diagnostic): boolean {
-  const normalizedPath = uri.fsPath.replace(/\\/g, '/');
-  const isSalesforceSource = /(?:^|\\/)(?:force-app|packages\\/[^/]+)\\/main\\/default\\//i.test(normalizedPath);
+  const segments = uri.fsPath.replace(/\\/g, '/').toLowerCase().split('/');
+  const defaultIndex = segments.findIndex((segment, index) => segment === 'main' && segments[index + 1] === 'default');
+  const isSalesforceSource = defaultIndex > 0 &&
+    (segments[defaultIndex - 1] === 'force-app' || segments[defaultIndex - 2] === 'packages');
+
   if (!isSalesforceSource) {
     return false;
   }
