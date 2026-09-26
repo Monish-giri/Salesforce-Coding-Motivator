@@ -8,7 +8,8 @@ A lightweight, local-first VS Code extension for Salesforce developers who want 
 - Tracks active coding time and idle periods
 - Shows contextual encouragement based on the active Salesforce workload
 - Keeps a small local history of session activity
-- Exposes a dashboard and deployment checklist for quick status checks
+- Shows a persistent status-bar companion with brief messages and quick actions
+- Reports Salesforce source diagnostics and can navigate directly to the affected file and line
 - Operates without external AI services or cloud dependencies
 
 ## Current implementation status
@@ -20,7 +21,7 @@ Implemented features include:
 - start/stop session lifecycle
 - idle and active session tracking
 - local history storage using VS Code global state
-- basic dashboard and status bar updates
+- persistent status-bar companion and actionable VS Code notifications
 - Salesforce context detection for key file patterns
 - deployment workflow prompts and checklist guidance
 - automated tests for core logic and session transitions
@@ -54,7 +55,7 @@ npm test
    - Salesforce Coding Motivator: Stop
    - Salesforce Coding Motivator: Show Old Chat
    - Salesforce Coding Motivator: Show Session Summary
-   - Salesforce Coding Motivator: Open Dashboard
+   - Salesforce Coding Motivator: Open Companion
    - Salesforce Coding Motivator: Trigger Deployment Message
    - Salesforce Coding Motivator: Show Deployment Checklist
 
@@ -72,7 +73,8 @@ The extension exposes a small set of settings under the namespace `salesforceCod
 
 - Context detection is heuristic and based on local file paths and project structure
 - It does not claim to monitor every Salesforce operation with guaranteed certainty
-- It is not yet a full visual mascot product or a public Marketplace release
+- VS Code's extension API does not allow arbitrary image overlays over the editor; the companion currently uses the status bar and native notifications rather than a floating mascot image
+- It is not yet a public Marketplace release
 - It does not attempt to execute Salesforce CLI commands or access org data automatically
 
 ## Roadmap
@@ -80,5 +82,5 @@ The extension exposes a small set of settings under the namespace `salesforceCod
 - strengthen the core session lifecycle and guardrails
 - improve context detection reliability
 - review mascot and companion UX direction
-- polish dashboard and user experience
+- refine the persistent companion and notification experience
 - prepare packaging and public release documentation
