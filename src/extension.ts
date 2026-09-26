@@ -251,6 +251,8 @@ function getDashboardHtml(): string {
             display: block;
             flex: 0 0 auto;
             margin: 0;
+            /* Compensate for transparent padding around the character in the PNG. */
+            transform: translateX(-35px);
             filter: drop-shadow(0 10px 18px rgba(79, 124, 255, 0.18));
           }
           .speech-bubble {
@@ -287,6 +289,9 @@ function getDashboardHtml(): string {
             .mascot-wrap {
               flex-direction: column;
               gap: 8px;
+            }
+            .mascot-wrap img {
+              transform: none;
             }
             .speech-bubble {
               width: min(170px, 72vw);
