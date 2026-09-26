@@ -191,9 +191,30 @@ function getDeploymentChecklistHtml(): string {
     .join('');
 }
 
+function isSalesforceSourceDiagnostic(uri: vscode.Uri, diagnostic: vscode.Diagnostic): boolean {
+  const normalizedPath = uri.fsPath.replace(/\\/g, '/');
+  const isSalesforceSource = /(?:^|\\/)(?:force-app|packages\\/[^/]+)\\/main\\/default\\//i.test(normalizedPath);
+  if (!isSalesforceSource) {
+    return false;
+  }
+
+  // Ignore Apex language-server startup/configuration problems. They describe the
+  // local Java/runtime setup, not a defect in the Salesforce source code.
+  const message = diagnostic.message.toLowerCase();
+  const isLanguageServerSetupIssue =
+    message.includes('unable to activate the apex language server') ||
+    (message.includes('java runtime') && (message.includes('could not be located') || message.includes('not found'))) ||
+    message.includes('set one using the salesforcedx-vscode-apex.java.home');
+
+  return !isLanguageServerSetupIssue;
+}
+
 function getWorkspaceErrorCount(): number {
   return vscode.languages.getDiagnostics()
-    .reduce((count, [, diagnostics]) => count + diagnostics.filter((diagnostic) => diagnostic.severity === vscode.DiagnosticSeverity.Error).length, 0);
+    .reduce((count, [uri, diagnostics]) => count + diagnostics.filter((diagnostic) =>
+      diagnostic.severity === vscode.DiagnosticSeverity.Error &&
+      isSalesforceSourceDiagnostic(uri, diagnostic)
+    ).length, 0);
 }
 
 function getDashboardHtml(): string {
