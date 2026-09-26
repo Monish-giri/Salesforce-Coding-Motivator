@@ -187,13 +187,20 @@ function getDeploymentChecklistHtml(): string {
     .join('');
 }
 
+function getActiveErrorCount(): number {
+  const document = vscode.window.activeTextEditor?.document;
+  if (!document) return 0;
+  return vscode.languages.getDiagnostics(document.uri).filter((diagnostic) => diagnostic.severity === vscode.DiagnosticSeverity.Error).length;
+}
+
 function getDashboardHtml(): string {
   const statusLabel = currentState === 'active' ? 'Active' : currentState === 'idle' ? 'Idle' : 'Stopped';
   const contextLabel = describeSalesforceContext(currentSalesforceContext);
   const deployStageLabel = currentSalesforceContext === 'deployment' ? ` • ${describeDeploymentStage(deployStage)}` : '';
   const activeMinutes = getActiveMinutes();
   const companionState = getCompanionState();
-  const mascotState = companionState === 'focused' ? 'focused' : companionState === 'streak' ? 'success' : companionState === 'idle' ? 'idle' : 'happy';
+  const activeErrorCount = getActiveErrorCount();
+  const mascotState = activeErrorCount > 0 ? 'sad' : companionState === 'focused' ? 'focused' : companionState === 'streak' ? 'success' : companionState === 'idle' ? 'idle' : 'happy';
   const recentMessages = [...messageHistory].slice(-6).reverse();
 
   const historyHtml = recentMessages.length > 0
@@ -208,7 +215,9 @@ function getDashboardHtml(): string {
     ? dashboardPanel.webview.asWebviewUri(vscode.Uri.joinPath(extensionContext!.extensionUri, 'media', 'mascot', `${mascotState}.png`)).toString()
     : `media/mascot/${mascotState}.png`;
   const mascotSvg = buildMascotSvg(mascotState, mascotAssetUri);
-  const bubbleText = getCurrentDialogueText();
+  const bubbleText = activeErrorCount > 0
+    ? `I spotted ${activeErrorCount} error${activeErrorCount === 1 ? '' : 's'} in this file. Take them one at a time—you’ve got this!`
+    : getCurrentDialogueText();
   const speechBubbleMarkup = bubbleText ? buildSpeechBubbleHtml(bubbleText) : '';
 
   return `
@@ -770,6 +779,11 @@ export function activate(context: vscode.ExtensionContext): void {
     dashboardPanel.reveal(vscode.ViewColumn.Two, true);
   });
 
+  const diagnosticsListener = vscode.languages.onDidChangeDiagnostics(() => {
+    // React to editor diagnostics only; terminal output and deployment logs are not diagnostics.
+    updateDashboard();
+  });
+
   const activeEditorListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
     handleContextChange(editor?.document);
   });
@@ -840,6 +854,7 @@ export function activate(context: vscode.ExtensionContext): void {
     showDashboardCommand,
     clearHistoryCommand,
     activeEditorListener,
+    diagnosticsListener,
     openDocumentListener,
     textChangeListener,
     saveListener,
