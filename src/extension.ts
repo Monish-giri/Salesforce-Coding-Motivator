@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { spawn } from 'node:child_process';
 import * as path from 'node:path';
-import { randomBytes } from 'node:crypto';
 
 import {
   detectSalesforceContextFromFilePath,
@@ -10,8 +9,7 @@ import {
 } from './core/salesforceLogic';
 import type { MotivationMessage, SalesforceContext } from './core/salesforceLogic';
 import { SessionManager } from './core/sessionManager';
-import { buildMascotSvg } from './mascot';
-import { buildSpeechBubbleHtml, getDialogueTextForContext, pickDialogueMessage, type DialogueContext } from './dialogue';
+import { getDialogueTextForContext, pickDialogueMessage, type DialogueContext } from './dialogue';
 
 type SessionState = 'stopped' | 'active' | 'idle';
 type CompanionState = 'ready' | 'focused' | 'streak' | 'idle' | 'break';
@@ -63,7 +61,6 @@ let extensionContext: vscode.ExtensionContext | undefined;
 let messageHistory: HistoryEntry[] = [];
 let touchedFiles = new Set<string>();
 let lastBreakReminderAt: Date | null = null;
-let dashboardPanel: vscode.WebviewPanel | undefined;
 let sessionMilestones = new Set<string>();
 let deployStage: DeploymentStage = 'pre-deploy';
 let activeDialogueKey: string | null = null;
@@ -182,17 +179,7 @@ function appendToHistory(message: string): void {
 
   messageHistory = messageHistory.slice(-maxHistoryEntries);
   renderHistory();
-  updateDashboard();
   storeHistory();
-}
-
-function getDeploymentChecklistHtml(): string {
-  const activeStage = currentSalesforceContext === 'deployment' ? deployStage : 'pre-deploy';
-  const checklist = deploymentChecklistByStage[activeStage] ?? deploymentChecklistByStage['pre-deploy'];
-
-  return checklist
-    .map((item, index) => `<li>${index + 1}. ${item}</li>`)
-    .join('');
 }
 
 function isSalesforceSourceDiagnostic(uri: vscode.Uri, diagnostic: vscode.Diagnostic): boolean {
@@ -224,222 +211,26 @@ interface SalesforceSourceError {
   message: string;
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  })[character] ?? character);
+async function openSalesforceSourceError(error: SalesforceSourceError): Promise<void> {
+  const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(error.uri));
+  const position = new vscode.Position(error.line - 1, error.character);
+  const editor = await vscode.window.showTextDocument(document, { preview: false });
+  editor.selection = new vscode.Selection(position, position);
+  editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
 }
 
-function getSalesforceSourceErrors(): SalesforceSourceError[] {
-  const errors: SalesforceSourceError[] = [];
-  for (const [uri, diagnostics] of vscode.languages.getDiagnostics()) {
-    for (const diagnostic of diagnostics) {
-      if (diagnostic.severity !== vscode.DiagnosticSeverity.Error || !isSalesforceSourceDiagnostic(uri, diagnostic)) continue;
-      errors.push({ uri: uri.toString(), fileName: vscode.workspace.asRelativePath(uri, false),
-        line: diagnostic.range.start.line + 1, character: diagnostic.range.start.character, message: diagnostic.message });
-    }
-  }
-  return errors.sort((a, b) => a.fileName.localeCompare(b.fileName) || a.line - b.line);
-}
-
-function getDashboardHtml(): string {
-  const statusLabel = currentState === 'active' ? 'Active' : currentState === 'idle' ? 'Idle' : 'Stopped';
-  const contextLabel = describeSalesforceContext(currentSalesforceContext);
-  const deployStageLabel = currentSalesforceContext === 'deployment' ? ` • ${describeDeploymentStage(deployStage)}` : '';
-  const activeMinutes = getActiveMinutes();
-  const companionState = getCompanionState();
-  const sourceErrors = getSalesforceSourceErrors();
-  const workspaceErrorCount = sourceErrors.length;
-  const hasError = workspaceErrorCount > 0 || deploymentErrorMessage !== null;
-  const mascotState = hasError ? 'sad' : companionState === 'focused' ? 'focused' : companionState === 'streak' ? 'success' : companionState === 'idle' ? 'idle' : 'happy';
-  const recentMessages = [...messageHistory].slice(-6).reverse();
-
-  const historyHtml = recentMessages.length > 0
-    ? recentMessages.map((entry) => `<li><strong>[${entry.timestamp}]</strong> ${entry.text}</li>`).join('')
-    : '<li>No recent messages yet.</li>';
-
-  const deploymentChecklistHtml = currentSalesforceContext === 'deployment'
-    ? `<div class="card"><h3>Deployment checklist</h3><ul>${getDeploymentChecklistHtml()}</ul></div>`
-    : '<div class="card"><h3>Deployment checklist</h3><ul><li>Open a deployment or metadata file to activate deploy guidance.</li></ul></div>';
-
-  const mascotAssetUri = dashboardPanel
-    ? dashboardPanel.webview.asWebviewUri(vscode.Uri.joinPath(extensionContext!.extensionUri, 'media', 'mascot', `${mascotState}.png`)).toString()
-    : `media/mascot/${mascotState}.png`;
-  const mascotSvg = buildMascotSvg(mascotState, mascotAssetUri);
-  const bubbleText = deploymentErrorMessage
-    ? `Deployment failed: ${deploymentErrorMessage}`
-    : workspaceErrorCount > 0
-      ? `I spotted ${workspaceErrorCount} workspace error${workspaceErrorCount === 1 ? '' : 's'}. Take them one at a time—you’ve got this!`
-      : getCurrentDialogueText();
-  const speechBubbleMarkup = bubbleText ? buildSpeechBubbleHtml(bubbleText) : '';
-  const nonce = randomBytes(16).toString('base64');
-  const shownErrors = sourceErrors.slice(0, 8);
-  const sourceErrorsHtml = shownErrors.map((error, index) =>
-    '<div class="error-item"><div class="error-heading"><strong>' + escapeHtml(error.fileName) + '</strong><span>Line ' + error.line + '</span></div>' +
-    '<p>' + escapeHtml(error.message) + '</p><button type="button" class="go-to-error" data-error-index="' + index + '">Go to Error</button></div>'
-  ).join('');
-  const sourceErrorData = JSON.stringify(shownErrors).replace(/</g, '\\u003c');
-
-  return `
-    <!DOCTYPE html>
-    <html lang="en">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${dashboardPanel?.webview.cspSource ?? ''} data:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';" />
-        <style>
-          body {
-            font-family: var(--vscode-font-family);
-            color: var(--vscode-foreground);
-            background: var(--vscode-editor-background);
-            padding: 16px;
-            margin: 0;
-          }
-          .card {
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 8px;
-            padding: 12px 14px;
-            margin-bottom: 12px;
-            background: var(--vscode-sideBar-background);
-          }
-          h2 { margin: 0 0 10px; }
-          .row { display: flex; gap: 8px; flex-wrap: wrap; }
-          .pill {
-            background: var(--vscode-badge-background);
-            color: var(--vscode-badge-foreground);
-            border-radius: 999px;
-            padding: 4px 10px;
-            font-size: 12px;
-          }
-          .mascot-wrap {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0;
-            padding: 12px 0 20px;
-            flex-wrap: nowrap;
-          }
-          .mascot-wrap img {
-            width: 180px;
-            height: auto;
-            max-height: 220px;
-            object-fit: contain;
-            display: block;
-            flex: 0 0 auto;
-            margin: 0;
-            /* Compensate for transparent padding around the character in the PNG. */
-            transform: translateX(-12px);
-            filter: drop-shadow(0 10px 18px rgba(79, 124, 255, 0.18));
-          }
-          .speech-bubble {
-            position: relative;
-            display: inline-block;
-            flex: 0 0 auto;
-            width: min(150px, 28vw);
-            max-width: 150px;
-            background: #ffffff;
-            color: #1f2937;
-            border: 2px solid #334155;
-            border-radius: 14px;
-            padding: 7px 9px;
-            font-size: 12px;
-            line-height: 1.35;
-            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
-            margin: 0;
-            word-break: break-word;
-            overflow-wrap: anywhere;
-            white-space: normal;
-          }
-          .speech-bubble__tail {
-            position: absolute;
-            right: -10px;
-            top: 50%;
-            width: 15px;
-            height: 15px;
-            background: #ffffff;
-            border-right: 2px solid #334155;
-            border-bottom: 2px solid #334155;
-            transform: translateY(-50%) rotate(-45deg);
-          }
-          @media (max-width: 520px) {
-            .mascot-wrap {
-              flex-direction: column;
-              gap: 8px;
-            }
-            .mascot-wrap img {
-              transform: none;
-            }
-            .speech-bubble {
-              width: min(170px, 72vw);
-              max-width: 170px;
-              margin: 0 0 8px;
-            }
-            .speech-bubble__tail {
-              left: 50%;
-              right: auto;
-              top: auto;
-              bottom: -11px;
-              transform: translateX(-50%) rotate(45deg);
-            }
-          }
-          ul { margin: 8px 0 0 16px; padding: 0; }
-          li { margin-bottom: 6px; }
-          .error-item { border-top: 1px solid var(--vscode-panel-border); padding: 12px 0; }
-          .error-heading { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-          .error-item p { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-          .go-to-error { padding: 6px 10px; border: 0; border-radius: 4px; cursor: pointer; color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
-          .go-to-error:hover { background: var(--vscode-button-hoverBackground); }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <h2>Salesforce Coding Motivator</h2>
-          <div class="row">
-            <span class="pill">Status: ${statusLabel}</span>
-            <span class="pill">Mood: ${companionState}</span>
-            <span class="pill">Context: ${contextLabel}${deployStageLabel}</span>
-          </div>
-        </div>
-
-        <div class="card"><strong>Companion:</strong> Your mascot is available from the bottom-right status bar.</div>
-
-        <div class="card">
-          <h3>Session</h3>
-          <div class="row">
-            <span class="pill">Active minutes: ${activeMinutes}</span>
-            <span class="pill">Files touched: ${touchedFiles.size}</span>
-          </div>
-        </div>
-
-        ${workspaceErrorCount > 0 ? `<div class="card"><h3>Salesforce source errors (${workspaceErrorCount})</h3>${sourceErrorsHtml}${workspaceErrorCount > 8 ? `<p>Showing first 8 of ${workspaceErrorCount} errors.</p>` : ''}</div>` : ''}
-
-        ${deploymentChecklistHtml}
-
-        <div class="card">
-          <h3>Recent messages</h3>
-          <ul>${historyHtml}</ul>
-        </div>
-        <script nonce="${nonce}">
-          const vscode = acquireVsCodeApi();
-          const sourceErrors = ${sourceErrorData};
-          document.querySelectorAll('[data-error-index]').forEach((button) => {
-            button.addEventListener('click', () => {
-              const error = sourceErrors[Number(button.dataset.errorIndex)];
-              if (error) vscode.postMessage({ type: 'openError', uri: error.uri, line: error.line, character: error.character });
-            });
-          });
-        </script>
-      </body>
-    </html>
-  `;
-}
-
-function updateDashboard(): void {
-  if (!dashboardPanel) {
+async function showSalesforceErrorPicker(): Promise<void> {
+  const errors = getSalesforceSourceErrors();
+  if (!errors.length) {
+    void vscode.window.showInformationMessage('No Salesforce source errors detected.');
     return;
   }
-
-  dashboardPanel.webview.html = getDashboardHtml();
+  const selected = await vscode.window.showQuickPick(errors.map((error) => ({
+    label: `${error.fileName} • Line ${error.line}`,
+    description: error.message,
+    error,
+  })), { placeHolder: 'Select a Salesforce source error to open it' });
+  if (selected) await openSalesforceSourceError(selected.error);
 }
 
 function describeDeploymentStage(stage: DeploymentStage): string {
@@ -808,33 +599,14 @@ export function activate(context: vscode.ExtensionContext): void {
   const companionMenuCommand = vscode.commands.registerCommand('salesforce-coding-motivator.openCompanionMenu', async () => {
     const action = await vscode.window.showQuickPick([
       { label: '$(comment-discussion) Show companion message', description: companionMessage, value: 'message' },
-      { label: '$(dashboard) Open detailed dashboard', value: 'dashboard' },
       { label: isRunning ? '$(debug-stop) Stop motivator session' : '$(play) Start motivator session', value: 'toggle' },
-      { label: '$(bug) Show Salesforce source errors', value: 'errors' },
+      { label: `$(bug) Show Salesforce source errors (${getSalesforceSourceErrors().length})`, value: 'errors' },
     ], { placeHolder: 'Salesforce Coding Motivator' });
     if (!action) return;
-    if (action.value === 'dashboard') {
-      await vscode.commands.executeCommand('salesforce-coding-motivator.openDashboard');
-    } else if (action.value === 'toggle') {
+    if (action.value === 'toggle') {
       await vscode.commands.executeCommand(isRunning ? 'salesforce-coding-motivator.stop' : 'salesforce-coding-motivator.start');
     } else if (action.value === 'errors') {
-      const errors = getSalesforceSourceErrors();
-      if (!errors.length) {
-        void vscode.window.showInformationMessage('No Salesforce source errors detected.');
-      } else {
-        const selected = await vscode.window.showQuickPick(errors.map((error) => ({
-          label: `${error.fileName} • Line ${error.line}`,
-          description: error.message,
-          error,
-        })), { placeHolder: 'Select an error to open its source location' });
-        if (selected) {
-          const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(selected.error.uri));
-          const position = new vscode.Position(selected.error.line - 1, selected.error.character);
-          const editor = await vscode.window.showTextDocument(document, { preview: false });
-          editor.selection = new vscode.Selection(position, position);
-          editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
-        }
-      }
+      await showSalesforceErrorPicker();
     } else {
       void vscode.window.showInformationMessage(companionMessage);
     }
@@ -862,52 +634,26 @@ export function activate(context: vscode.ExtensionContext): void {
   const clearHistoryCommand = vscode.commands.registerCommand('salesforce-coding-motivator.clearHistory', async () => {
     messageHistory = [];
     renderHistory();
-    updateDashboard();
     await context.globalState.update(historyStorageKey, messageHistory);
     void vscode.window.showInformationMessage('🧹 Salesforce Coding Motivator history cleared.');
   });
 
-  const showDashboardCommand = vscode.commands.registerCommand('salesforce-coding-motivator.openDashboard', () => {
-    if (!dashboardPanel) {
-      dashboardPanel = vscode.window.createWebviewPanel(
-        'salesforceCodingMotivatorDashboard',
-        'Salesforce Coding Motivator',
-        vscode.ViewColumn.Two,
-        { enableScripts: true }
-      );
-
-      dashboardPanel.webview.onDidReceiveMessage(async (message: { type?: string; uri?: string; line?: number; character?: number }) => {
-        if (message.type !== 'openError' || !message.uri) return;
-        try {
-          const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(message.uri));
-          const line = Math.max(0, Math.min((message.line ?? 1) - 1, document.lineCount - 1));
-          const character = Math.min(Math.max(0, message.character ?? 0), document.lineAt(line).text.length);
-          const position = new vscode.Position(line, character);
-          const editor = await vscode.window.showTextDocument(document, { viewColumn: vscode.ViewColumn.One, preview: false });
-          editor.selection = new vscode.Selection(position, position);
-          editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
-        } catch (error) {
-          void vscode.window.showErrorMessage(`Unable to open source error: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      });
-      dashboardPanel.onDidDispose(() => {
-        dashboardPanel = undefined;
-      });
-    }
-
-    dashboardPanel.webview.html = getDashboardHtml();
-    dashboardPanel.reveal(vscode.ViewColumn.Two, true);
-  });
-
-  const diagnosticsListener = vscode.languages.onDidChangeDiagnostics(() => {
+  const diagnosticsListener = vscode.languages.onDidChangeDiagnostics(async () => {
     const errors = getSalesforceSourceErrors();
     const signature = errors.map((error) => `${error.uri}:${error.line}:${error.message}`).join('|');
-    if (signature !== lastDiagnosticSignature) {
-      lastDiagnosticSignature = signature;
-      if (errors.length > 0) showCompanionMessage(`Found ${errors.length} Salesforce source error${errors.length === 1 ? '' : 's'}. Click for details.`);
-      else if (signature === '') showCompanionMessage('Source errors cleared. Nice work!');
+    if (signature === lastDiagnosticSignature) return;
+    const hadErrors = lastDiagnosticSignature.length > 0;
+    lastDiagnosticSignature = signature;
+    if (errors.length > 0) {
+      const first = errors[0];
+      showCompanionMessage(`Found ${errors.length} Salesforce source error${errors.length === 1 ? '' : 's'}. Click for details.`);
+      const action = await vscode.window.showErrorMessage(`Salesforce issue: ${first.fileName}, line ${first.line}: ${first.message}`, 'Go to Error', 'View All Errors');
+      if (action === 'Go to Error') await openSalesforceSourceError(first);
+      else if (action === 'View All Errors') await showSalesforceErrorPicker();
+    } else if (hadErrors) {
+      showCompanionMessage('Source errors cleared. Nice work!');
+      void vscode.window.showInformationMessage('Salesforce source errors cleared. Nice work!');
     }
-    updateDashboard();
   });
 
   const activeEditorListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
@@ -1007,6 +753,7 @@ export function activate(context: vscode.ExtensionContext): void {
       deploymentErrorMessage = error.message;
       deploymentOutput?.appendLine(`\nCould not start Salesforce CLI: ${error.message}`);
       updateDashboard();
+      showCompanionMessage(`Deployment could not start: ${error.message}`, 15_000);
       void vscode.window.showErrorMessage(`Deployment could not start: ${error.message}`);
     });
     child.on('close', (code) => {
@@ -1015,6 +762,7 @@ export function activate(context: vscode.ExtensionContext): void {
         deploymentOutput?.appendLine('\nDeployment command completed successfully.');
         appendToHistory(`Deployment succeeded: ${sourceLabel}`);
         showCompanionMessage('Deployment succeeded! Nice work.');
+        void vscode.window.showInformationMessage('Salesforce deployment succeeded.');
       } else {
         const combined = `${stdout}\n${stderr}`.trim();
         let summary = `Salesforce CLI exited with code ${code ?? 'unknown'}.`;
@@ -1026,6 +774,7 @@ export function activate(context: vscode.ExtensionContext): void {
         deploymentOutput?.appendLine(`\nDeployment failed: ${summary}`);
         appendToHistory(`Deployment failed: ${summary}`);
         showCompanionMessage(`Deployment failed: ${deploymentErrorMessage}. Click for details.`, 15_000);
+        void vscode.window.showErrorMessage(`Salesforce deployment failed: ${deploymentErrorMessage}`, 'Show Deployment Output').then((choice) => { if (choice) deploymentOutput?.show(true); });
       }
       updateDashboard();
     });
@@ -1043,10 +792,6 @@ export function activate(context: vscode.ExtensionContext): void {
     appendToHistory(`Deployment checklist for ${describeDeploymentStage(activeStage)}: ${checklist[0]}`);
     void vscode.window.showInformationMessage(message);
 
-    if (dashboardPanel) {
-      dashboardPanel.webview.html = getDashboardHtml();
-      dashboardPanel.reveal(vscode.ViewColumn.Two, true);
-    }
   });
 
   context.subscriptions.push(
@@ -1055,7 +800,6 @@ export function activate(context: vscode.ExtensionContext): void {
     companionMenuCommand,
     showHistoryCommand,
     showSessionSummaryCommand,
-    showDashboardCommand,
     clearHistoryCommand,
     activeEditorListener,
     diagnosticsListener,
