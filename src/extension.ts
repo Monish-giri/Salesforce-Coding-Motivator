@@ -1,16 +1,16 @@
 import * as vscode from 'vscode';
 
+import {
+  detectSalesforceContextFromFilePath,
+  motivationMessages,
+  pickMotivationMessage,
+} from './core/salesforceLogic';
+import type { MotivationMessage, SalesforceContext } from './core/salesforceLogic';
+import { SessionManager } from './core/sessionManager';
+
 type SessionState = 'stopped' | 'active' | 'idle';
 type CompanionState = 'ready' | 'focused' | 'streak' | 'idle' | 'break';
-type SalesforceContext = 'apex' | 'apex-test' | 'trigger' | 'soql' | 'lwc' | 'metadata' | 'deployment' | 'unknown';
 type DeploymentStage = 'pre-deploy' | 'validate' | 'post-deploy';
-
-type MotivationMessage = {
-  text: string;
-  minActiveMinutes: number;
-  minCooldownMinutes: number;
-  contexts?: SalesforceContext[];
-};
 
 type HistoryEntry = {
   text: string;
@@ -21,23 +21,6 @@ type HistoryEntry = {
 const defaultIdleThresholdMs = 60_000;
 const maxHistoryEntries = 100;
 const historyStorageKey = 'salesforceCodingMotivator.chatHistory';
-const motivationMessages: MotivationMessage[] = [
-  { text: '⚡ Apex time. Keep those governor limits in mind.', minActiveMinutes: 0, minCooldownMinutes: 1, contexts: ['apex'] },
-  { text: '🧪 Apex tests in motion. One assertion at a time.', minActiveMinutes: 0, minCooldownMinutes: 2, contexts: ['apex-test'] },
-  { text: '🔥 Trigger detected. Think bulkification.', minActiveMinutes: 0, minCooldownMinutes: 1, contexts: ['trigger'] },
-  { text: '🔎 SOQL focus: keep queries efficient and intentional.', minActiveMinutes: 0, minCooldownMinutes: 1, contexts: ['soql'] },
-  { text: '💡 LWC focus: keep it clean, reusable, and easy to reason about.', minActiveMinutes: 0, minCooldownMinutes: 1, contexts: ['lwc'] },
-  { text: '🧩 Metadata work is moving the project forward.', minActiveMinutes: 0, minCooldownMinutes: 1, contexts: ['metadata'] },
-  { text: '🚀 Deployment is part of the journey. Validate the result and keep learning.', minActiveMinutes: 0, minCooldownMinutes: 5, contexts: ['deployment'] },
-  { text: '✅ Before deploy, verify the metadata and test coverage are in a good state.', minActiveMinutes: 0, minCooldownMinutes: 6, contexts: ['deployment'] },
-  { text: '🛠️ Deploy calm, verify fast, and fix one issue at a time.', minActiveMinutes: 0, minCooldownMinutes: 7, contexts: ['deployment'] },
-  { text: '⚡ Nice work. Keep the momentum going.', minActiveMinutes: 0, minCooldownMinutes: 1 },
-  { text: '💪 You are in the flow. Stay with it.', minActiveMinutes: 0, minCooldownMinutes: 2 },
-  { text: '🔥 Keep pushing. One focused task at a time.', minActiveMinutes: 0, minCooldownMinutes: 3 },
-  { text: '🎯 Progress is progress. Keep going.', minActiveMinutes: 0, minCooldownMinutes: 4 },
-  { text: '🚀 You are making steady Salesforce progress.', minActiveMinutes: 15, minCooldownMinutes: 5 },
-  { text: '😌 A short pause can sharpen the next fix.', minActiveMinutes: 25, minCooldownMinutes: 10 },
-];
 
 const deploymentChecklistByStage: Record<DeploymentStage, string[]> = {
   'pre-deploy': [
@@ -66,6 +49,7 @@ let statusBarItem: vscode.StatusBarItem | undefined;
 let sessionStart: Date | null = null;
 let lastActivityAt: Date | null = null;
 let idleTimer: NodeJS.Timeout | undefined;
+let sessionManager: SessionManager | undefined;
 let lastMotivationAt: Date | null = null;
 let lastMotivationContext: SalesforceContext | null = null;
 let currentSalesforceContext: SalesforceContext = 'unknown';
@@ -259,48 +243,8 @@ function describeDeploymentStage(stage: DeploymentStage): string {
   }
 }
 
-function detectSalesforceContext(document: vscode.TextDocument | undefined): SalesforceContext {
-  if (!document) {
-    return 'unknown';
-  }
-
-  const fileName = document.fileName.toLowerCase();
-  const pathSegments = document.fileName.split(/[\\/]/).map((segment) => segment.toLowerCase());
-  const isInsideSalesforceDxPath = pathSegments.some((segment) => ['force-app', 'manifest', 'objects', 'classes', 'triggers', 'lwc', 'aura', 'staticresources'].includes(segment));
-  const isApexTestFile = fileName.endsWith('.cls') && /test/.test(fileName);
-  const isDeploymentFile = fileName.endsWith('package.xml') || fileName.endsWith('destructivechanges.xml') || pathSegments.includes('manifest') || pathSegments.includes('deployment') || pathSegments.includes('deploy');
-
-  if (isDeploymentFile) {
-    return 'deployment';
-  }
-
-  if (fileName.endsWith('.trigger')) {
-    return 'trigger';
-  }
-
-  if (fileName.endsWith('.soql')) {
-    return 'soql';
-  }
-
-  if (fileName.endsWith('.cls')) {
-    return isApexTestFile ? 'apex-test' : 'apex';
-  }
-
-  if (pathSegments.includes('lwc') || pathSegments.includes('aura')) {
-    return 'lwc';
-  }
-
-  if (fileName.endsWith('.js') || fileName.endsWith('.html') || fileName.endsWith('.css') || fileName.endsWith('.svg')) {
-    if (pathSegments.includes('lwc')) {
-      return 'lwc';
-    }
-  }
-
-  if (fileName.endsWith('.xml') && isInsideSalesforceDxPath) {
-    return 'metadata';
-  }
-
-  return 'unknown';
+export function detectSalesforceContext(document: vscode.TextDocument | undefined): SalesforceContext {
+  return detectSalesforceContextFromFilePath(document?.fileName);
 }
 
 function describeSalesforceContext(context: SalesforceContext): string {
@@ -370,6 +314,7 @@ function markActivity(): void {
   const now = new Date();
   sessionStart ??= now;
   lastActivityAt = now;
+  sessionManager?.markActivity(now.getTime());
   recordFileActivity(vscode.window.activeTextEditor?.document);
   maybePublishMilestone();
 
@@ -407,17 +352,20 @@ function startTracking(): void {
     return;
   }
 
-  sessionStart = new Date();
-  lastActivityAt = new Date();
+  const now = new Date();
+  sessionStart = now;
+  lastActivityAt = now;
+  sessionManager = new SessionManager(getIdleThresholdMs());
+  sessionManager.start();
   lastBreakReminderAt = null;
 
   idleTimer = setInterval(() => {
-    if (!isRunning || !lastActivityAt) {
+    if (!isRunning || !lastActivityAt || !sessionManager) {
       return;
     }
 
-    const elapsed = Date.now() - lastActivityAt.getTime();
-    const nextState: SessionState = elapsed >= getIdleThresholdMs() ? 'idle' : 'active';
+    const nowMs = Date.now();
+    const nextState: SessionState = sessionManager.tick(nowMs);
 
     if (currentState !== nextState) {
       setState(nextState);
@@ -457,6 +405,8 @@ function stopTracking(): void {
     idleTimer = undefined;
   }
 
+  sessionManager?.stop();
+  sessionManager = undefined;
   sessionStart = null;
   lastActivityAt = null;
   lastMotivationAt = null;
@@ -468,30 +418,18 @@ function stopTracking(): void {
 }
 
 function getActiveMinutes(): number {
-  if (!sessionStart) {
+  if (!sessionStart || !sessionManager) {
     return 0;
   }
 
-  const elapsedMs = Date.now() - sessionStart.getTime();
-  return Math.floor(elapsedMs / 60_000);
+  return sessionManager.getActiveMinutes();
 }
 
 function getContextualMessage(activeMinutes: number): MotivationMessage | undefined {
   const config = vscode.workspace.getConfiguration('salesforceCodingMotivator');
   const debugMode = config.get<boolean>('debugTestMode', false);
-  const effectiveMinutes = debugMode ? Math.min(activeMinutes, 3) : activeMinutes;
 
-  const contextMessages = motivationMessages.filter((message) => {
-    if (!message.contexts) {
-      return true;
-    }
-
-    return message.contexts.includes(currentSalesforceContext);
-  });
-
-  return contextMessages
-    .filter((message) => effectiveMinutes >= message.minActiveMinutes)
-    .sort((a, b) => b.minActiveMinutes - a.minActiveMinutes)[0];
+  return pickMotivationMessage(currentSalesforceContext, activeMinutes, debugMode);
 }
 
 function triggerMotivation(activeMinutes: number): void {
@@ -600,6 +538,22 @@ function updateStatusBar(): void {
   statusBarItem.show();
 }
 
+function handleContextChange(document: vscode.TextDocument | undefined): void {
+  currentSalesforceContext = detectSalesforceContext(document);
+  updateDeploymentStageFromContext(currentSalesforceContext);
+  recordFileActivity(document);
+  updateStatusBar();
+  markActivity();
+
+  if (isRunning && currentSalesforceContext !== 'unknown') {
+    if (currentSalesforceContext === 'deployment') {
+      triggerDeploymentMotivation();
+    } else {
+      triggerMotivation(0);
+    }
+  }
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   extensionContext = context;
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -672,70 +626,21 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   const activeEditorListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
-    const document = editor?.document;
-    currentSalesforceContext = detectSalesforceContext(document);
-    updateDeploymentStageFromContext(currentSalesforceContext);
-    recordFileActivity(document);
-    updateStatusBar();
-    markActivity();
-
-    if (isRunning && currentSalesforceContext !== 'unknown') {
-      if (currentSalesforceContext === 'deployment') {
-        triggerDeploymentMotivation();
-      } else {
-        triggerMotivation(0);
-      }
-    }
+    handleContextChange(editor?.document);
   });
 
   const openDocumentListener = vscode.workspace.onDidOpenTextDocument((document) => {
     if (vscode.window.activeTextEditor?.document === document) {
-      currentSalesforceContext = detectSalesforceContext(document);
-      updateDeploymentStageFromContext(currentSalesforceContext);
-      recordFileActivity(document);
-      updateStatusBar();
-      markActivity();
-
-      if (isRunning && currentSalesforceContext !== 'unknown') {
-        if (currentSalesforceContext === 'deployment') {
-          triggerDeploymentMotivation();
-        } else {
-          triggerMotivation(0);
-        }
-      }
+      handleContextChange(document);
     }
   });
 
   const textChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
-    currentSalesforceContext = detectSalesforceContext(event.document);
-    updateDeploymentStageFromContext(currentSalesforceContext);
-    recordFileActivity(event.document);
-    updateStatusBar();
-    markActivity();
-
-    if (isRunning && currentSalesforceContext !== 'unknown') {
-      if (currentSalesforceContext === 'deployment') {
-        triggerDeploymentMotivation();
-      } else {
-        triggerMotivation(0);
-      }
-    }
+    handleContextChange(event.document);
   });
 
   const saveListener = vscode.workspace.onDidSaveTextDocument((document) => {
-    currentSalesforceContext = detectSalesforceContext(document);
-    updateDeploymentStageFromContext(currentSalesforceContext);
-    recordFileActivity(document);
-    updateStatusBar();
-    markActivity();
-
-    if (isRunning && currentSalesforceContext !== 'unknown') {
-      if (currentSalesforceContext === 'deployment') {
-        triggerDeploymentMotivation();
-      } else {
-        triggerMotivation(0);
-      }
-    }
+    handleContextChange(document);
   });
 
   const focusListener = vscode.window.onDidChangeWindowState(() => {
