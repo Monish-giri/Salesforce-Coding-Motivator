@@ -103,16 +103,16 @@
       }
     },
     "viewsContainers": {
-      "panel": [
+      "secondarySidebar": [
         {
-          "id": "salesforceCodingMotivatorPanel",
+          "id": "salesforceCodingMotivatorSecondary",
           "title": "Motivator",
           "icon": "media/motivator.svg"
         }
       ]
     },
     "views": {
-      "salesforceCodingMotivatorPanel": [
+      "salesforceCodingMotivatorSecondary": [
         {
           "id": "salesforceCodingMotivator.companionView",
           "name": "Salesforce Coding Motivator",
