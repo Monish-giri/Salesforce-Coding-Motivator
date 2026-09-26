@@ -263,7 +263,7 @@ function renderHistory(): void {
   const companionProvider = new MotivatorCompanionViewProvider(context.extensionUri);
   const companionViewRegistration = vscode.window.registerWebviewViewProvider('salesforceCodingMotivator.companionView', companionProvider, { webviewOptions: { retainContextWhenHidden: true } });
   const openCompanionViewCommand = vscode.commands.registerCommand('salesforce-coding-motivator.openCompanionView', async () => {
-    await vscode.commands.executeCommand('workbench.view.extension.salesforceCodingMotivator');
+    await vscode.commands.executeCommand('workbench.view.extension.salesforceCodingMotivatorPanel');
   });
   }
 
