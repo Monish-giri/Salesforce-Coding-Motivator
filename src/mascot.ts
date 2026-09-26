@@ -1,9 +1,7 @@
 export type MascotState = 'idle' | 'focused' | 'happy' | 'success' | 'deployment' | 'sleep' | 'sad';
 
 export function getMascotAssetPath(state: MascotState = 'idle'): string {
-  // The sad artwork was uploaded with a capitalized filename.
-  const assetName = state === 'sad' ? 'Sad.png' : `${state}.png`;
-  return `media/mascot/${assetName}`;
+  return `media/mascot/${state}.png`;
 }
 
 export function buildMascotSvg(state: MascotState = 'idle', assetUri?: string): string {
