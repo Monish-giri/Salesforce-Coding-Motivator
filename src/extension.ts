@@ -239,7 +239,7 @@ function getDashboardHtml(): string {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 12px;
+            gap: 0;
             padding: 12px 0 20px;
             flex-wrap: nowrap;
           }
@@ -249,12 +249,14 @@ function getDashboardHtml(): string {
             max-height: 220px;
             object-fit: contain;
             display: block;
-            margin: 0 auto;
+            flex: 0 0 auto;
+            margin: 0;
             filter: drop-shadow(0 10px 18px rgba(79, 124, 255, 0.18));
           }
           .speech-bubble {
             position: relative;
             display: inline-block;
+            flex: 0 0 auto;
             width: min(150px, 28vw);
             max-width: 150px;
             background: #ffffff;
@@ -265,7 +267,7 @@ function getDashboardHtml(): string {
             font-size: 12px;
             line-height: 1.35;
             box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
-            margin: 0 10px 0 0;
+            margin: 0;
             word-break: break-word;
             overflow-wrap: anywhere;
             white-space: normal;
@@ -562,8 +564,6 @@ function triggerMotivation(activeMinutes: number): void {
   if (!candidate || currentSalesforceContext === 'unknown') {
     return;
   }
-
-  const isDeploymentContext = currentSalesforceContext === 'deployment';
 
   if (lastMotivationAt && lastMotivationContext === currentSalesforceContext) {
     const elapsedMinutes = (now.getTime() - lastMotivationAt.getTime()) / 60_000;
