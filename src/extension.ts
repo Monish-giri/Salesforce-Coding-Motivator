@@ -422,7 +422,11 @@ function setState(nextState: SessionState): void {
 }
 
 function refreshCurrentContext(): void {
-  currentSalesforceContext = detectSalesforceContext(vscode.window.activeTextEditor?.document);
+  const activeDocument = vscode.window.activeTextEditor?.document;
+  if (activeDocument) {
+    currentSalesforceContext = detectSalesforceContext(activeDocument);
+    updateDeploymentStageFromContext(currentSalesforceContext);
+  }
   updateStatusBar();
 }
 
@@ -658,6 +662,12 @@ function updateStatusBar(): void {
 }
 
 function handleContextChange(document: vscode.TextDocument | undefined): void {
+  // Webview focus can leave VS Code with no active text editor. Keep the last
+  // text-file context rather than incorrectly resetting the dashboard to General.
+  if (!document) {
+    return;
+  }
+
   const nextContext = detectSalesforceContext(document);
   currentSalesforceContext = nextContext;
   updateDeploymentStageFromContext(currentSalesforceContext);
@@ -696,7 +706,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const startCommand = vscode.commands.registerCommand('salesforce-coding-motivator.start', () => {
     isRunning = true;
-    currentSalesforceContext = detectSalesforceContext(vscode.window.activeTextEditor?.document);
+    const activeDocument = vscode.window.activeTextEditor?.document;
+    if (activeDocument) {
+      currentSalesforceContext = detectSalesforceContext(activeDocument);
+      updateDeploymentStageFromContext(currentSalesforceContext);
+    }
     setState('active');
     startTracking();
     markActivity();
@@ -767,18 +781,25 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   const textChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
-    handleContextChange(event.document);
+    if (vscode.window.activeTextEditor?.document === event.document) {
+      handleContextChange(event.document);
+    }
   });
 
   const saveListener = vscode.workspace.onDidSaveTextDocument((document) => {
-    handleContextChange(document);
+    if (vscode.window.activeTextEditor?.document === document) {
+      handleContextChange(document);
+    }
   });
 
   const focusListener = vscode.window.onDidChangeWindowState(() => {
     const activeEditor = vscode.window.activeTextEditor;
-    currentSalesforceContext = detectSalesforceContext(activeEditor?.document);
-    updateDeploymentStageFromContext(currentSalesforceContext);
+    if (activeEditor?.document) {
+      currentSalesforceContext = detectSalesforceContext(activeEditor.document);
+      updateDeploymentStageFromContext(currentSalesforceContext);
+    }
     updateStatusBar();
+    updateDashboard();
 
     if (isRunning && currentSalesforceContext !== 'unknown') {
       if (currentSalesforceContext === 'deployment') {
