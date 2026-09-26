@@ -1,13 +1,11 @@
-# Salesforce Coding Motivator — Mascot Art Assets
+# Refined mascot pose assets
 
-Five transparent PNG character poses prepared from the approved mascot concept:
+Transparent PNG pose assets for the Salesforce Coding Motivator VS Code extension.
 
 - `idle.png` — relaxed standing pose
-- `focused.png` — arms crossed, concentrated expression
-- `happy.png` — small fist-pump pose
-- `success.png` — raised-arms celebration
-- `deployment.png` — forward-leaning ready pose
+- `focused.png` — arms crossed, focused expression
+- `happy.png` — cheerful raised-fists pose
+- `success.png` — celebratory jump
+- `deployment.png` — confident pointing pose
 
-These are visual assets only. They are not yet wired into the VS Code extension. The PNGs use transparent backgrounds and are 640 pixels tall; each keeps its natural aspect ratio.
-
-Suggested repository location: `media/mascot/`
+Extract the `media/` folder into the extension repository root.
