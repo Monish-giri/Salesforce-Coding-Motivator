@@ -191,10 +191,9 @@ function getDeploymentChecklistHtml(): string {
     .join('');
 }
 
-function getActiveErrorCount(): number {
-  const document = vscode.window.activeTextEditor?.document;
-  if (!document) return 0;
-  return vscode.languages.getDiagnostics(document.uri).filter((diagnostic) => diagnostic.severity === vscode.DiagnosticSeverity.Error).length;
+function getWorkspaceErrorCount(): number {
+  return vscode.languages.getDiagnostics()
+    .reduce((count, [, diagnostics]) => count + diagnostics.filter((diagnostic) => diagnostic.severity === vscode.DiagnosticSeverity.Error).length, 0);
 }
 
 function getDashboardHtml(): string {
@@ -203,8 +202,9 @@ function getDashboardHtml(): string {
   const deployStageLabel = currentSalesforceContext === 'deployment' ? ` • ${describeDeploymentStage(deployStage)}` : '';
   const activeMinutes = getActiveMinutes();
   const companionState = getCompanionState();
-  const activeErrorCount = getActiveErrorCount();
-  const mascotState = activeErrorCount > 0 ? 'sad' : companionState === 'focused' ? 'focused' : companionState === 'streak' ? 'success' : companionState === 'idle' ? 'idle' : 'happy';
+  const workspaceErrorCount = getWorkspaceErrorCount();
+  const hasError = workspaceErrorCount > 0 || deploymentErrorMessage !== null;
+  const mascotState = hasError ? 'sad' : companionState === 'focused' ? 'focused' : companionState === 'streak' ? 'success' : companionState === 'idle' ? 'idle' : 'happy';
   const recentMessages = [...messageHistory].slice(-6).reverse();
 
   const historyHtml = recentMessages.length > 0
@@ -219,9 +219,11 @@ function getDashboardHtml(): string {
     ? dashboardPanel.webview.asWebviewUri(vscode.Uri.joinPath(extensionContext!.extensionUri, 'media', 'mascot', `${mascotState}.png`)).toString()
     : `media/mascot/${mascotState}.png`;
   const mascotSvg = buildMascotSvg(mascotState, mascotAssetUri);
-  const bubbleText = activeErrorCount > 0
-    ? `I spotted ${activeErrorCount} error${activeErrorCount === 1 ? '' : 's'} in this file. Take them one at a time—you’ve got this!`
-    : getCurrentDialogueText();
+  const bubbleText = deploymentErrorMessage
+    ? `Deployment failed: ${deploymentErrorMessage}`
+    : workspaceErrorCount > 0
+      ? `I spotted ${workspaceErrorCount} workspace error${workspaceErrorCount === 1 ? '' : 's'}. Take them one at a time—you’ve got this!`
+      : getCurrentDialogueText();
   const speechBubbleMarkup = bubbleText ? buildSpeechBubbleHtml(bubbleText) : '';
 
   return `
