@@ -211,6 +211,31 @@ interface SalesforceSourceError {
   message: string;
 }
 
+function getSalesforceSourceErrors(): SalesforceSourceError[] {
+  const errors: SalesforceSourceError[] = [];
+
+  for (const [uri, diagnostics] of vscode.languages.getDiagnostics()) {
+    for (const diagnostic of diagnostics) {
+      if (
+        diagnostic.severity !== vscode.DiagnosticSeverity.Error ||
+        !isSalesforceSourceDiagnostic(uri, diagnostic)
+      ) {
+        continue;
+      }
+
+      errors.push({
+        uri: uri.toString(),
+        fileName: path.basename(uri.fsPath),
+        line: diagnostic.range.start.line + 1,
+        character: diagnostic.range.start.character,
+        message: diagnostic.message,
+      });
+    }
+  }
+
+  return errors;
+}
+
 async function openSalesforceSourceError(error: SalesforceSourceError): Promise<void> {
   const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(error.uri));
   const position = new vscode.Position(error.line - 1, error.character);
