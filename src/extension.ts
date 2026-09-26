@@ -70,7 +70,7 @@ let lastDialogueAt: number | null = null;
 let currentDialogueText = '';
 let deploymentErrorMessage: string | null = null;
 let deploymentOutput: vscode.OutputChannel | undefined;
-let companionMessage = 'Ready when you are!';
+let companionMessage = '';
 let companionMessageTimer: NodeJS.Timeout | undefined;
 let lastDiagnosticSignature = '';
 
@@ -134,7 +134,8 @@ class MotivatorCompanionViewProvider implements vscode.WebviewViewProvider {
   .stage { display:flex; align-items:flex-end; justify-content:center; gap:10px; min-height:180px; }
   .mascot { width:min(58%, 180px); max-height:190px; object-fit:contain; }
   .bubble { position:relative; align-self:center; max-width:65%; padding:11px 13px; border:1px solid var(--vscode-widget-border); border-radius:14px; background:var(--vscode-editorWidget-background); color:var(--vscode-editorWidget-foreground); box-shadow:0 3px 12px #0002; font-size:12px; line-height:1.45; overflow-wrap:anywhere; }
-  .bubble:after { content:''; position:absolute; left:-7px; bottom:22px; width:12px; height:12px; transform:rotate(45deg); background:var(--vscode-editorWidget-background); border-left:1px solid var(--vscode-widget-border); border-bottom:1px solid var(--vscode-widget-border); }
+  .bubble:after { content:''; position:absolute; right:-7px; bottom:22px; width:12px; height:12px; transform:rotate(45deg); background:var(--vscode-editorWidget-background); border-right:1px solid var(--vscode-widget-border); border-top:1px solid var(--vscode-widget-border); }
+  .bubble.hidden { display:none; }
   .meta { display:flex; justify-content:center; gap:6px; flex-wrap:wrap; margin:8px 0 12px; font-size:11px; color:var(--vscode-descriptionForeground); }
   .pill { border:1px solid var(--vscode-widget-border); border-radius:20px; padding:4px 8px; }
   .actions { display:flex; justify-content:center; gap:8px; }
@@ -146,8 +147,8 @@ class MotivatorCompanionViewProvider implements vscode.WebviewViewProvider {
 <body>
   <main>
     <div class="stage">
-      <div id="bubble" class="bubble" role="status" aria-live="polite">Ready when you are!</div>
       <img id="mascot" class="mascot" src="${imageUris.idle}" alt="Salesforce coding mascot">
+      <div id="bubble" class="bubble hidden" role="status" aria-live="polite"></div>
     </div>
     <div class="meta"><span id="context" class="pill">Context: General</span><span id="session" class="pill">Session: stopped</span><span id="errors" class="pill">Errors: 0</span></div>
     <div class="actions"><button id="toggle">Start session</button><button id="errorsButton" class="secondary">View errors</button></div>
@@ -162,7 +163,8 @@ class MotivatorCompanionViewProvider implements vscode.WebviewViewProvider {
     const data = event.data;
     if (data.type !== 'update') return;
     mascot.src = images[data.state] || images.idle;
-    bubble.textContent = data.message || 'Ready when you are!';
+    bubble.textContent = data.message || '';
+    bubble.classList.toggle('hidden', !data.message);
     document.getElementById('context').textContent = 'Context: ' + data.context;
     document.getElementById('session').textContent = 'Session: ' + data.session;
     document.getElementById('errors').textContent = 'Errors: ' + data.errorCount;
@@ -638,7 +640,7 @@ function showCompanionMessage(message: string, durationMs = 8_000): void {
   updateStatusBar(true);
   updateCompanionView();
   companionMessageTimer = setTimeout(() => {
-    companionMessage = 'Ready when you are!';
+    companionMessage = '';
     companionMessageTimer = undefined;
     updateStatusBar();
     updateCompanionView();
