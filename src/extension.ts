@@ -252,7 +252,7 @@ function getDashboardHtml(): string {
             flex: 0 0 auto;
             margin: 0;
             /* Compensate for transparent padding around the character in the PNG. */
-            transform: translateX(-35px);
+            transform: translateX(-12px);
             filter: drop-shadow(0 10px 18px rgba(79, 124, 255, 0.18));
           }
           .speech-bubble {
