@@ -46,10 +46,6 @@
         "title": "Salesforce Coding Motivator: Clear Chat History"
       },
       {
-        "command": "salesforce-coding-motivator.openDashboard",
-        "title": "Salesforce Coding Motivator: Open Dashboard"
-      },
-      {
         "command": "salesforce-coding-motivator.triggerDeploymentMessage",
         "title": "Salesforce Coding Motivator: Trigger Deployment Message"
       },
