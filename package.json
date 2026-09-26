@@ -10,10 +10,6 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCommand:salesforce-coding-motivator.start",
-    "onCommand:salesforce-coding-motivator.stop"
-  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -24,8 +20,68 @@
       {
         "command": "salesforce-coding-motivator.stop",
         "title": "Salesforce Coding Motivator: Stop"
+      },
+      {
+        "command": "salesforce-coding-motivator.showHistory",
+        "title": "Salesforce Coding Motivator: Show Old Chat"
+      },
+      {
+        "command": "salesforce-coding-motivator.showSessionSummary",
+        "title": "Salesforce Coding Motivator: Show Session Summary"
+      },
+      {
+        "command": "salesforce-coding-motivator.clearHistory",
+        "title": "Salesforce Coding Motivator: Clear Chat History"
+      },
+      {
+        "command": "salesforce-coding-motivator.openDashboard",
+        "title": "Salesforce Coding Motivator: Open Dashboard"
+      },
+      {
+        "command": "salesforce-coding-motivator.triggerDeploymentMessage",
+        "title": "Salesforce Coding Motivator: Trigger Deployment Message"
+      },
+      {
+        "command": "salesforce-coding-motivator.showDeploymentChecklist",
+        "title": "Salesforce Coding Motivator: Show Deployment Checklist"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Salesforce Coding Motivator",
+      "properties": {
+        "salesforceCodingMotivator.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the motivational notifications for the session."
+        },
+        "salesforceCodingMotivator.debugTestMode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use shorter test-friendly message thresholds for local validation."
+        },
+        "salesforceCodingMotivator.messageCooldownMinutes": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "maximum": 60,
+          "description": "Cooldown period in minutes between repeat motivational messages."
+        },
+        "salesforceCodingMotivator.idleThresholdMinutes": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0.5,
+          "maximum": 60,
+          "description": "Minutes of inactivity before the session is marked idle."
+        },
+        "salesforceCodingMotivator.breakReminderMinutes": {
+          "type": "number",
+          "default": 20,
+          "minimum": 5,
+          "maximum": 180,
+          "description": "Minutes of idle time before a break reminder is shown."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
