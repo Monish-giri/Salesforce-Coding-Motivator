@@ -60,6 +60,10 @@
       {
         "command": "salesforce-coding-motivator.openCompanionMenu",
         "title": "Salesforce Coding Motivator: Open Companion"
+      },
+      {
+        "command": "salesforce-coding-motivator.openCompanionView",
+        "title": "Salesforce Coding Motivator: Show Mascot Companion"
       }
     ],
     "configuration": {
@@ -97,6 +101,25 @@
           "description": "Minutes of idle time before a break reminder is shown."
         }
       }
+    },
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "salesforceCodingMotivatorPanel",
+          "title": "Motivator",
+          "icon": "media/motivator.svg"
+        }
+      ]
+    },
+    "views": {
+      "salesforceCodingMotivatorPanel": [
+        {
+          "id": "salesforceCodingMotivator.companionView",
+          "name": "Salesforce Coding Motivator",
+          "type": "webview",
+          "visibility": "visible"
+        }
+      ]
     }
   },
   "scripts": {
