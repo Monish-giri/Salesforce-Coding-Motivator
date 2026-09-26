@@ -64,6 +64,7 @@ let dashboardPanel: vscode.WebviewPanel | undefined;
 let sessionMilestones = new Set<string>();
 let deployStage: DeploymentStage = 'pre-deploy';
 let activeDialogueKey: string | null = null;
+let lastDialogueContext: DialogueContext | null = null;
 let lastDialogueAt: number | null = null;
 let currentDialogueText = '';
 
@@ -123,11 +124,16 @@ function resolveDialogueContext(): DialogueContext {
 export function getCurrentDialogueText(): string {
   const now = Date.now();
   const dialogueContext = resolveDialogueContext();
+  const contextChanged = lastDialogueContext !== dialogueContext;
   const cooldownElapsed = lastDialogueAt === null || (now - lastDialogueAt) >= 45_000;
 
-  if (!currentDialogueText || !activeDialogueKey || cooldownElapsed) {
-    const nextMessage = pickDialogueMessage(dialogueContext, activeDialogueKey ?? undefined);
+  // Change the bubble immediately when the active Salesforce context changes.
+  // Only avoid repeating the previous message when staying in the same context.
+  if (!currentDialogueText || !activeDialogueKey || contextChanged || cooldownElapsed) {
+    const previousKey = contextChanged ? undefined : activeDialogueKey ?? undefined;
+    const nextMessage = pickDialogueMessage(dialogueContext, previousKey);
     activeDialogueKey = nextMessage.key;
+    lastDialogueContext = dialogueContext;
     currentDialogueText = nextMessage.text;
     lastDialogueAt = now;
   }
