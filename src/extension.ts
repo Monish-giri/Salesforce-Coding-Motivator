@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { spawn } from 'node:child_process';
+import * as path from 'node:path';
 
 import {
   detectSalesforceContextFromFilePath,
@@ -67,6 +69,8 @@ let activeDialogueKey: string | null = null;
 let lastDialogueContext: DialogueContext | null = null;
 let lastDialogueAt: number | null = null;
 let currentDialogueText = '';
+let deploymentErrorMessage: string | null = null;
+let deploymentOutput: vscode.OutputChannel | undefined;
 
 function getIdleThresholdMs(): number {
   const config = vscode.workspace.getConfiguration('salesforceCodingMotivator');
@@ -826,6 +830,83 @@ export function activate(context: vscode.ExtensionContext): void {
     if (vscode.window.state.focused) {
       markActivity();
     }
+  });
+
+  const deployAndMonitorCommand = vscode.commands.registerCommand('salesforce-coding-motivator.deployAndMonitor', async () => {
+    const editor = vscode.window.activeTextEditor;
+    const workspaceFolder = editor && vscode.workspace.getWorkspaceFolder(editor.document.uri);
+    if (!editor || !workspaceFolder || editor.document.isUntitled) {
+      void vscode.window.showWarningMessage('Open a saved Salesforce source file inside your project before deploying.');
+      return;
+    }
+
+    const filePath = editor.document.uri.fsPath;
+    const parent = path.dirname(filePath);
+    const sourcePath = path.basename(path.dirname(parent)) === 'lwc' ? parent : filePath;
+    const sourceLabel = path.relative(workspaceFolder.uri.fsPath, sourcePath);
+    const confirmation = await vscode.window.showWarningMessage(
+      `Deploy ${sourceLabel} to the org currently selected in Salesforce CLI?`,
+      { modal: true, detail: 'This runs an actual Salesforce deployment using the authenticated org configured in your Salesforce CLI.' },
+      'Deploy'
+    );
+    if (confirmation !== 'Deploy') return;
+
+    if (!deploymentOutput) deploymentOutput = vscode.window.createOutputChannel('Salesforce Deployment Monitor');
+    deploymentOutput.clear();
+    deploymentOutput.show(true);
+    deploymentOutput.appendLine(`Running: sf project deploy start --source-dir "${sourcePath}" --json`);
+    deploymentErrorMessage = null;
+    currentSalesforceContext = 'deployment';
+    updateDashboard();
+
+    const args = ['project', 'deploy', 'start', '--source-dir', sourcePath, '--json'];
+    const commandLine = process.platform === 'win32'
+      ? `sf ${args.map((arg) => `"${arg.replace(/"/g, '\\"')}"`).join(' ')}`
+      : 'sf';
+    const child = spawn(commandLine, process.platform === 'win32' ? [] : args, {
+      cwd: workspaceFolder.uri.fsPath,
+      shell: process.platform === 'win32',
+      windowsHide: true
+    });
+
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (chunk: Buffer | string) => {
+      const value = chunk.toString();
+      stdout += value;
+      deploymentOutput?.append(value);
+    });
+    child.stderr?.on('data', (chunk: Buffer | string) => {
+      const value = chunk.toString();
+      stderr += value;
+      deploymentOutput?.append(value);
+    });
+    child.on('error', (error) => {
+      deploymentErrorMessage = error.message;
+      deploymentOutput?.appendLine(`\nCould not start Salesforce CLI: ${error.message}`);
+      updateDashboard();
+      void vscode.window.showErrorMessage(`Deployment could not start: ${error.message}`);
+    });
+    child.on('close', (code) => {
+      if (code === 0) {
+        deploymentErrorMessage = null;
+        deploymentOutput?.appendLine('\nDeployment command completed successfully.');
+        appendToHistory(`Deployment succeeded: ${sourceLabel}`);
+        void vscode.window.showInformationMessage('Salesforce deployment succeeded.');
+      } else {
+        const combined = `${stdout}\n${stderr}`.trim();
+        let summary = `Salesforce CLI exited with code ${code ?? 'unknown'}.`;
+        try {
+          const parsed = JSON.parse(stdout);
+          summary = parsed?.message || parsed?.result?.details?.componentFailures?.[0]?.problem || summary;
+        } catch { /* CLI output may include non-JSON text. */ }
+        deploymentErrorMessage = summary.slice(0, 180);
+        deploymentOutput?.appendLine(`\nDeployment failed: ${summary}`);
+        appendToHistory(`Deployment failed: ${summary}`);
+        void vscode.window.showErrorMessage('Salesforce deployment failed. See Salesforce Deployment Monitor output for details.');
+      }
+      updateDashboard();
+    });
   });
 
   const deploymentListener = vscode.commands.registerCommand('salesforce-coding-motivator.triggerDeploymentMessage', () => {
