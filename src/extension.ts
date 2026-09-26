@@ -293,7 +293,6 @@ function updateDeploymentStageFromContext(context: SalesforceContext): void {
 function setState(nextState: SessionState): void {
   currentState = nextState;
   updateStatusBar();
-  updateDashboard();
 }
 
 function refreshCurrentContext(): void {
@@ -534,7 +533,7 @@ function updateStatusBar(showMessage = false): void {
 
 function handleContextChange(document: vscode.TextDocument | undefined): void {
   // Webview focus can leave VS Code with no active text editor. Keep the last
-  // text-file context rather than incorrectly resetting the dashboard to General.
+  // text-file context rather than incorrectly resetting the Salesforce context.
   if (!document) {
     return;
   }
@@ -545,9 +544,8 @@ function handleContextChange(document: vscode.TextDocument | undefined): void {
   recordFileActivity(document);
   updateStatusBar();
 
-  // Always refresh the dashboard for the most recently activated editor,
+  // Refresh the companion status item for the most recently activated editor,
   // even when notifications are suppressed by their cooldown.
-  updateDashboard();
 
   if (!isRunning) {
     return;
@@ -685,7 +683,6 @@ export function activate(context: vscode.ExtensionContext): void {
       updateDeploymentStageFromContext(currentSalesforceContext);
     }
     updateStatusBar();
-    updateDashboard();
 
     if (isRunning && currentSalesforceContext !== 'unknown') {
       if (currentSalesforceContext === 'deployment') {
@@ -725,7 +722,6 @@ export function activate(context: vscode.ExtensionContext): void {
     deploymentOutput.appendLine(`Running: sf project deploy start --source-dir "${sourcePath}" --json`);
     deploymentErrorMessage = null;
     currentSalesforceContext = 'deployment';
-    updateDashboard();
 
     const args = ['project', 'deploy', 'start', '--source-dir', sourcePath, '--json'];
     const commandLine = process.platform === 'win32'
@@ -752,7 +748,6 @@ export function activate(context: vscode.ExtensionContext): void {
     child.on('error', (error) => {
       deploymentErrorMessage = error.message;
       deploymentOutput?.appendLine(`\nCould not start Salesforce CLI: ${error.message}`);
-      updateDashboard();
       showCompanionMessage(`Deployment could not start: ${error.message}`, 15_000);
       void vscode.window.showErrorMessage(`Deployment could not start: ${error.message}`);
     });
@@ -776,7 +771,6 @@ export function activate(context: vscode.ExtensionContext): void {
         showCompanionMessage(`Deployment failed: ${deploymentErrorMessage}. Click for details.`, 15_000);
         void vscode.window.showErrorMessage(`Salesforce deployment failed: ${deploymentErrorMessage}`, 'Show Deployment Output').then((choice) => { if (choice) deploymentOutput?.show(true); });
       }
-      updateDashboard();
     });
   });
 
