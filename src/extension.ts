@@ -131,9 +131,9 @@ class MotivatorCompanionViewProvider implements vscode.WebviewViewProvider {
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <style nonce="${nonce}">
   body { margin:0; padding:12px; color:var(--vscode-foreground); background:var(--vscode-sideBar-background); font-family:var(--vscode-font-family); }
-  .stage { display:flex; align-items:flex-end; justify-content:center; gap:10px; min-height:180px; }
-  .mascot { width:min(58%, 180px); max-height:190px; object-fit:contain; }
-  .bubble { position:relative; align-self:center; max-width:65%; padding:11px 13px; border:1px solid var(--vscode-widget-border); border-radius:14px; background:var(--vscode-editorWidget-background); color:var(--vscode-editorWidget-foreground); box-shadow:0 3px 12px #0002; font-size:12px; line-height:1.45; overflow-wrap:anywhere; }
+  .stage { display:flex; align-items:center; justify-content:center; gap:8px; min-height:180px; }
+  .mascot { order:2; flex:0 1 46%; width:46%; max-width:155px; max-height:190px; object-fit:contain; }
+  .bubble { order:1; position:relative; flex:1 1 54%; min-width:0; max-width:54%; align-self:center; padding:11px 12px; border:1px solid var(--vscode-widget-border); border-radius:14px; background:var(--vscode-editorWidget-background); color:var(--vscode-editorWidget-foreground); box-shadow:0 3px 12px #0002; font-size:12px; line-height:1.45; overflow-wrap:anywhere; }
   .bubble:after { content:''; position:absolute; right:-7px; bottom:22px; width:12px; height:12px; transform:rotate(45deg); background:var(--vscode-editorWidget-background); border-right:1px solid var(--vscode-widget-border); border-top:1px solid var(--vscode-widget-border); }
   .bubble.hidden { display:none; }
   .meta { display:flex; justify-content:center; gap:6px; flex-wrap:wrap; margin:8px 0 12px; font-size:11px; color:var(--vscode-descriptionForeground); }
@@ -147,8 +147,8 @@ class MotivatorCompanionViewProvider implements vscode.WebviewViewProvider {
 <body>
   <main>
     <div class="stage">
-      <img id="mascot" class="mascot" src="${imageUris.idle}" alt="Salesforce coding mascot">
       <div id="bubble" class="bubble hidden" role="status" aria-live="polite"></div>
+      <img id="mascot" class="mascot" src="${imageUris.idle}" alt="Salesforce coding mascot">
     </div>
     <div class="meta"><span id="context" class="pill">Context: General</span><span id="session" class="pill">Session: stopped</span><span id="errors" class="pill">Errors: 0</span></div>
     <div class="actions"><button id="toggle">Start session</button><button id="errorsButton" class="secondary">View errors</button></div>
