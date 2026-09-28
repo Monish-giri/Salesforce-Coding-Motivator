@@ -456,6 +456,7 @@ function setState(nextState: SessionState): void {
 function refreshCurrentContext(): void {
   const activeDocument = vscode.window.activeTextEditor?.document;
   if (activeDocument) {
+    lastContextDocumentUri = activeDocument.uri.toString();
     currentSalesforceContext = detectSalesforceContext(activeDocument);
     updateDeploymentStageFromContext(currentSalesforceContext);
   }
