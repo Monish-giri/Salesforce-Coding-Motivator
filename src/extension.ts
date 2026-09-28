@@ -70,13 +70,25 @@ let lastDialogueAt: number | null = null;
 let currentDialogueText = '';
 let deploymentErrorMessage: string | null = null;
 let deploymentOutput: vscode.OutputChannel | undefined;
+type TerminalDeploymentState = 'running' | 'success' | null;
+let terminalDeploymentState: TerminalDeploymentState = null;
+interface TrackedTerminalDeployment {
+  commandLine: string;
+  output: string;
+  outputReader: Promise<void>;
+}
+const trackedTerminalDeployments = new Map<vscode.TerminalShellExecution, TrackedTerminalDeployment>();
 let companionMessage = '';
 let companionMessageTimer: NodeJS.Timeout | undefined;
 let lastDiagnosticSignature = '';
 
 function getMascotStateForView(): string {
-  // Keep error feedback persistent while an actual Salesforce source/deployment error exists.
+  // Keep actual Salesforce source/deployment failures visible until resolved.
   if (getSalesforceSourceErrors().length > 0 || deploymentErrorMessage) return 'sad';
+
+  // Terminal-observed deployments have explicit running/success states.
+  if (terminalDeploymentState === 'running') return 'deployment';
+  if (terminalDeploymentState === 'success' && companionMessage) return 'success';
 
   // Use expressive poses while speaking; return to the calm idle pose once the bubble clears.
   if (!companionMessage) return 'idle';
@@ -712,6 +724,110 @@ function handleContextChange(document: vscode.TextDocument | undefined): void {
   }
 }
 
+function isSalesforceDeployCommand(commandLine: string): boolean {
+  // Match Salesforce CLI deploy commands only; ignore unrelated terminal commands.
+  const normalized = commandLine.trim().replace(/^&\\s*/, '');
+  return /(?:^|[\\s;&|])(?:sf|sfdx)(?:\\.cmd)?\\s+(?:(?:project\\s+deploy\\s+(?:start|validate|quick|resume))|(?:deploy\\s+metadata)|(?:force:source:deploy)|(?:force:mdapi:deploy))(?:\\s|$)/i.test(normalized);
+}
+
+function summarizeTerminalDeploymentFailure(output: string, exitCode: number | undefined): string {
+  const clean = output.replace(/\\x1B\\[[0-?]*[ -/]*[@-~]/g, '').trim();
+  try {
+    const parsed = JSON.parse(clean) as {
+      message?: string;
+      name?: string;
+      result?: {
+        message?: string;
+        details?: {
+          componentFailures?: Array<{ componentType?: string; fullName?: string; problem?: string }>;
+          runTestResult?: { failures?: Array<{ name?: string; message?: string }> };
+        };
+      };
+    };
+    const componentFailure = parsed.result?.details?.componentFailures?.find((failure) => failure.problem);
+    if (componentFailure?.problem) {
+      return [componentFailure.componentType, componentFailure.fullName, componentFailure.problem].filter(Boolean).join(': ');
+    }
+    const testFailure = parsed.result?.details?.runTestResult?.failures?.[0];
+    if (testFailure) return [testFailure.name, testFailure.message].filter(Boolean).join(': ');
+    const message = parsed.result?.message || parsed.message;
+    if (message) return message;
+  } catch {
+    // Normal human-readable Salesforce CLI output is not JSON.
+  }
+
+  const relevantLine = clean.split(/\\r?\\n/)
+    .map((line) => line.trim())
+    .find((line) => /(?:error|failed|failure|cannot|invalid|timed out)/i.test(line));
+  return (relevantLine || `Salesforce CLI exited with code ${exitCode ?? 'unknown'}.`).slice(0, 220);
+}
+
+function trackTerminalSalesforceDeployments(context: vscode.ExtensionContext): void {
+  const startListener = vscode.window.onDidStartTerminalShellExecution((event) => {
+    const commandLine = event.execution.commandLine.value;
+    if (!isSalesforceDeployCommand(commandLine)) return;
+
+    const tracked: TrackedTerminalDeployment = {
+      commandLine,
+      output: '',
+      outputReader: Promise.resolve(),
+    };
+    trackedTerminalDeployments.set(event.execution, tracked);
+    currentSalesforceContext = 'deployment';
+    deploymentErrorMessage = null;
+    terminalDeploymentState = 'running';
+    companionMessage = 'Deploying your Salesforce changes…';
+    if (companionMessageTimer) {
+      clearTimeout(companionMessageTimer);
+      companionMessageTimer = undefined;
+    }
+    appendToHistory(`Salesforce CLI deployment started: ${commandLine}`);
+    updateStatusBar(true);
+    updateCompanionView();
+
+    // Start reading immediately so terminal output is not missed.
+    tracked.outputReader = (async () => {
+      try {
+        for await (const chunk of event.execution.read()) tracked.output += chunk;
+      } catch {
+        // The shell may close or stop streaming before all output is available.
+      }
+    })();
+  });
+
+  const endListener = vscode.window.onDidEndTerminalShellExecution(async (event) => {
+    const tracked = trackedTerminalDeployments.get(event.execution);
+    if (!tracked) return;
+    trackedTerminalDeployments.delete(event.execution);
+    await tracked.outputReader;
+
+    if (event.exitCode === 0) {
+      deploymentErrorMessage = null;
+      terminalDeploymentState = 'success';
+      appendToHistory('Salesforce CLI deployment succeeded.');
+      showCompanionMessage('Deployment succeeded! Nicely done. 🚀');
+      void vscode.window.showInformationMessage('Salesforce CLI deployment succeeded.');
+      return;
+    }
+
+    const failure = summarizeTerminalDeploymentFailure(tracked.output, event.exitCode);
+    terminalDeploymentState = null;
+    deploymentErrorMessage = failure;
+    appendToHistory(`Salesforce CLI deployment failed: ${failure}`);
+    showCompanionMessage(`Deployment failed: ${failure}`, 15_000);
+    void vscode.window.showErrorMessage(`Salesforce deployment failed: ${failure}`, 'View deployment details').then((choice) => {
+      if (choice) {
+        const channel = vscode.window.createOutputChannel('Salesforce Deployment Monitor');
+        channel.appendLine(`Command: ${tracked.commandLine}`);
+        channel.appendLine(tracked.output);
+        channel.show(true);
+      }
+    });
+  });
+
+  context.subscriptions.push(startListener, endListener);
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   extensionContext = context;
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -728,6 +844,7 @@ export function activate(context: vscode.ExtensionContext): void {
       await vscode.commands.executeCommand('workbench.view.extension.salesforceCodingMotivatorSecondary');
     }
   );
+  trackTerminalSalesforceDeployments(context);
   messageHistory = context.globalState.get<HistoryEntry[]>(historyStorageKey, []);
   renderHistory();
   refreshCurrentContext();
