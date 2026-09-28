@@ -1,53 +1,52 @@
-Salesforce Coding Motivator — Personal Use License
+Salesforce Coding Motivator — Use License
 
 Copyright (c) 2026 Monishgiri P
 
-IMPORTANT: This is a custom, restrictive license. It is not the MIT License
-and does not grant open-source or general redistribution rights.
+1. Permission to use
 
-1. Permission for personal use
+You are granted a worldwide, non-exclusive, royalty-free license to download,
+install, run, and use Salesforce Coding Motivator for personal, educational,
+internal, or commercial purposes.
 
-You are granted a limited, non-exclusive, non-transferable, revocable
-permission to download, install, run, and privately modify Salesforce Coding
-Motivator solely for your own personal, non-commercial use.
+You do not need to request permission merely to install or use the unmodified
+extension, including in a business or commercial development environment.
 
-2. Uses requiring prior written permission
+2. Modifications require prior written permission
 
-You must obtain prior written permission from Monishgiri P before you:
+You may not modify, adapt, translate, create derivative works of, or publish a
+modified version of the Software without prior written permission from
+Monishgiri P.
 
-- incorporate the Software or any substantial portion of its source code into
-  a product, service, extension, application, or other offering;
-- use the Software or its source code for commercial purposes, including as
-  part of a product or service offered for sale, monetized, or provided in
-  connection with a business;
-- publish, distribute, sublicense, sell, or otherwise redistribute copies of
-  the Software, whether modified or unmodified; or
-- make the Software or its source code available to others as part of another
-  product, repository, package, or service.
+This restriction includes changing the source code or packaged files and
+distributing or making available a modified version.
 
-A request for permission must identify the intended use. Permission is valid
-only if granted in writing by Monishgiri P or an authorized representative.
+3. Distribution
 
-3. Restrictions
+You may direct others to the official project or Marketplace listing so they
+can obtain the Software from its official source. You may not redistribute
+copies of the Software, modified or unmodified, or publish it through another
+listing or repository without prior written permission from Monishgiri P.
 
-Except for the personal-use permission expressly granted above, no rights or
-licenses are granted by implication, estoppel, or otherwise. All rights are
-reserved by the copyright holder. You may not remove or alter copyright,
-authorship, or license notices included with the Software.
+4. Ownership and notices
 
-4. Ownership
+The Software and its associated branding remain the property of their
+respective rights holders. This license does not transfer ownership or grant
+rights to trademarks or branding. You may not remove or alter notices included
+with the Software.
 
-The Software remains the property of its copyright holder. This license does
-not transfer ownership or grant any rights to trademarks, branding, or other
-materials except as expressly stated.
+5. Permission requests
 
-5. Termination
+Requests for permission to modify or redistribute the Software must describe
+the intended use and be approved in writing by Monishgiri P or an authorized
+representative.
+
+6. Termination
 
 The permissions granted under this license terminate automatically if you
-breach its terms. Upon termination, you must stop using the Software and
-delete copies in your possession or control.
+breach its terms. Upon termination, you must stop the activity that violates
+this license and cease using any unauthorized modified or redistributed copy.
 
-6. Disclaimer and limitation
+7. Disclaimer
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -56,9 +55,3 @@ COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY,
 WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF,
 OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-7. Contact
-
-To request written permission for a use requiring approval, contact the
-copyright holder through the contact details provided in the project's
-repository or project profile.
