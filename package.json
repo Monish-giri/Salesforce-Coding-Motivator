@@ -2,7 +2,7 @@
   "name": "salesforce-coding-motivator",
   "displayName": "Salesforce Coding Motivator",
   "description": "A lightweight motivational companion for Salesforce developers working in VS Code.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "monishgiri-2001",
   "repository": {
     "type": "git",
