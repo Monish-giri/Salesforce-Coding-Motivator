@@ -75,9 +75,12 @@ let companionMessageTimer: NodeJS.Timeout | undefined;
 let lastDiagnosticSignature = '';
 
 function getMascotStateForView(): string {
-  if (getSalesforceSourceErrors().length > 0) return 'sad';
-  if (currentSalesforceContext === 'deployment') return deploymentErrorMessage ? 'sad' : 'deployment';
-  if (currentState === 'idle') return 'idle';
+  // Keep error feedback persistent while an actual Salesforce source/deployment error exists.
+  if (getSalesforceSourceErrors().length > 0 || deploymentErrorMessage) return 'sad';
+
+  // Use expressive poses while speaking; return to the calm idle pose once the bubble clears.
+  if (!companionMessage) return 'idle';
+  if (currentSalesforceContext === 'deployment') return 'deployment';
   if (currentState === 'active') return getCompanionState() === 'focused' ? 'focused' : 'happy';
   return 'idle';
 }
