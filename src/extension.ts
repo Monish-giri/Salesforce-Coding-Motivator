@@ -83,9 +83,16 @@ let companionMessageTimer: NodeJS.Timeout | undefined;
 let lastDiagnosticSignature = '';
 let lastContextDocumentUri: string | null = null;
 
+function getActiveSalesforceSourceErrors(): SalesforceSourceError[] {
+  const activeUri = vscode.window.activeTextEditor?.document.uri.toString();
+  if (!activeUri) return [];
+  return getSalesforceSourceErrors().filter((error) => error.uri === activeUri);
+}
+
 function getMascotStateForView(): string {
-  // Keep actual Salesforce source/deployment failures visible until resolved.
-  if (getSalesforceSourceErrors().length > 0 || deploymentErrorMessage) return 'sad';
+  // Show source-error sadness only while the file containing the error is active.
+  // Deployment failures are separately cleared when the developer changes files.
+  if (getActiveSalesforceSourceErrors().length > 0 || deploymentErrorMessage) return 'sad';
 
   // Terminal-observed deployments have explicit running/success states.
   if (terminalDeploymentState === 'running') return 'deployment';
@@ -707,10 +714,12 @@ function handleContextChange(document: vscode.TextDocument | undefined): void {
 
   // A deployment failure should affect the mascot only until the developer
   // moves on to another file. Do not let an old failure pin the mascot in sad.
-  if (switchedDocument && deploymentErrorMessage && terminalDeploymentState !== 'running') {
+  if (switchedDocument && terminalDeploymentState !== 'running') {
     deploymentErrorMessage = null;
     terminalDeploymentState = null;
-    if (companionMessage.startsWith('Deployment failed:')) {
+    if (companionMessage.startsWith('Deployment failed:') ||
+        companionMessage.startsWith('Found ') ||
+        companionMessage.startsWith('Salesforce source error')) {
       companionMessage = '';
       if (companionMessageTimer) {
         clearTimeout(companionMessageTimer);
