@@ -81,6 +81,7 @@ const trackedTerminalDeployments = new Map<vscode.TerminalShellExecution, Tracke
 let companionMessage = '';
 let companionMessageTimer: NodeJS.Timeout | undefined;
 let lastDiagnosticSignature = '';
+let lastContextDocumentUri: string | null = null;
 
 function getMascotStateForView(): string {
   // Keep actual Salesforce source/deployment failures visible until resolved.
@@ -697,6 +698,24 @@ function handleContextChange(document: vscode.TextDocument | undefined): void {
   // text-file context rather than incorrectly resetting the Salesforce context.
   if (!document) {
     return;
+  }
+
+  const nextDocumentUri = document.uri.toString();
+  const switchedDocument = lastContextDocumentUri !== null && lastContextDocumentUri !== nextDocumentUri;
+  lastContextDocumentUri = nextDocumentUri;
+
+  // A deployment failure should affect the mascot only until the developer
+  // moves on to another file. Do not let an old failure pin the mascot in sad.
+  if (switchedDocument && deploymentErrorMessage && terminalDeploymentState !== 'running') {
+    deploymentErrorMessage = null;
+    terminalDeploymentState = null;
+    if (companionMessage.startsWith('Deployment failed:')) {
+      companionMessage = '';
+      if (companionMessageTimer) {
+        clearTimeout(companionMessageTimer);
+        companionMessageTimer = undefined;
+      }
+    }
   }
 
   const nextContext = detectSalesforceContext(document);
