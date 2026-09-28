@@ -692,9 +692,9 @@ function updateStatusBar(showMessage = false): void {
   const contextLabel = describeSalesforceContext(currentSalesforceContext);
   const companionState = getCompanionState();
   const deploymentSuffix = currentSalesforceContext === 'deployment' ? ` • ${describeDeploymentStage(deployStage)}` : '';
-  const pet = '🐣';
+  const icon = '$(zap)';
   const baseLabel = currentState === 'stopped' ? 'Motivator' : currentState === 'idle' ? 'Motivator • idle' : `Motivator • ${contextLabel}${deploymentSuffix}`;
-  statusBarItem.text = showMessage ? `${pet} ${companionMessage.slice(0, 42)}` : `${pet} ${baseLabel}`;
+  statusBarItem.text = showMessage ? `${icon} ${companionMessage.slice(0, 42)}` : `${icon} ${baseLabel}`;
   statusBarItem.tooltip = `${companionMessage}\nClick to open companion actions.\nStatus: ${currentState}; mood: ${companionState}`;
   statusBarItem.command = 'salesforce-coding-motivator.openCompanionView';
   statusBarItem.show();
