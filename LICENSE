@@ -1,21 +1,64 @@
-MIT License
+Salesforce Coding Motivator — Personal Use License
 
 Copyright (c) 2026 Monishgiri P
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+IMPORTANT: This is a custom, restrictive license. It is not the MIT License
+and does not grant open-source or general redistribution rights.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. Permission for personal use
+
+You are granted a limited, non-exclusive, non-transferable, revocable
+permission to download, install, run, and privately modify Salesforce Coding
+Motivator solely for your own personal, non-commercial use.
+
+2. Uses requiring prior written permission
+
+You must obtain prior written permission from Monishgiri P before you:
+
+- incorporate the Software or any substantial portion of its source code into
+  a product, service, extension, application, or other offering;
+- use the Software or its source code for commercial purposes, including as
+  part of a product or service offered for sale, monetized, or provided in
+  connection with a business;
+- publish, distribute, sublicense, sell, or otherwise redistribute copies of
+  the Software, whether modified or unmodified; or
+- make the Software or its source code available to others as part of another
+  product, repository, package, or service.
+
+A request for permission must identify the intended use. Permission is valid
+only if granted in writing by Monishgiri P or an authorized representative.
+
+3. Restrictions
+
+Except for the personal-use permission expressly granted above, no rights or
+licenses are granted by implication, estoppel, or otherwise. All rights are
+reserved by the copyright holder. You may not remove or alter copyright,
+authorship, or license notices included with the Software.
+
+4. Ownership
+
+The Software remains the property of its copyright holder. This license does
+not transfer ownership or grant any rights to trademarks, branding, or other
+materials except as expressly stated.
+
+5. Termination
+
+The permissions granted under this license terminate automatically if you
+breach its terms. Upon termination, you must stop using the Software and
+delete copies in your possession or control.
+
+6. Disclaimer and limitation
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF,
+OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+7. Contact
+
+To request written permission for a use requiring approval, contact the
+copyright holder through the contact details provided in the project's
+repository or project profile.
