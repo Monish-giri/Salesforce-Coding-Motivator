@@ -287,6 +287,25 @@ function appendToHistory(message: string): void {
   storeHistory();
 }
 
+function isXmlSchemaValidationNoise(uri: vscode.Uri, diagnostic: vscode.Diagnostic): boolean {
+  if (path.extname(uri.fsPath).toLowerCase() !== '.xml') return false;
+
+  const message = diagnostic.message.toLowerCase();
+  const code = typeof diagnostic.code === 'string' || typeof diagnostic.code === 'number'
+    ? String(diagnostic.code).toLowerCase()
+    : '';
+
+  // Some XML extensions validate Salesforce metadata against an incomplete or
+  // mismatched schema. Ignore schema-resolution/type-system reports, while
+  // retaining XML well-formedness errors and Salesforce deployment failures.
+  return code.includes('cv-type.3.1.2') ||
+    code.includes('src-resolve') ||
+    message.includes('cv-type.3.1.2') ||
+    message.includes('src-resolve') ||
+    message.includes('cannot resolve the name') && message.includes('type definition') ||
+    message.includes('is a simple type, so it must have no element information item');
+}
+
 function isSalesforceSourceDiagnostic(uri: vscode.Uri, diagnostic: vscode.Diagnostic): boolean {
   const segments = uri.fsPath.replace(/\\/g, '/').toLowerCase().split('/');
   const defaultIndex = segments.findIndex((segment, index) => segment === 'main' && segments[index + 1] === 'default');
@@ -296,6 +315,10 @@ function isSalesforceSourceDiagnostic(uri: vscode.Uri, diagnostic: vscode.Diagno
   if (!isSalesforceSource) {
     return false;
   }
+
+  // Ignore known XML schema-validator noise from incomplete/mismatched
+  // Salesforce metadata schemas. Actual XML syntax errors remain reportable.
+  if (isXmlSchemaValidationNoise(uri, diagnostic)) return false;
 
   // Ignore Apex language-server startup/configuration problems. They describe the
   // local Java/runtime setup, not a defect in the Salesforce source code.
