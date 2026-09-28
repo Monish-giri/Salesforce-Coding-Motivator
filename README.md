@@ -1,43 +1,113 @@
 # Salesforce Coding Motivator
 
-A lightweight, local-first VS Code extension for Salesforce developers who want a small motivational companion while they work in Apex, LWC, metadata, and deployment workflows.
+A lightweight motivational companion for Salesforce developers working in VS Code.
 
-## What it does
+Salesforce Coding Motivator brings a small developer companion into your VS Code workspace, giving contextual encouragement while you work with Apex, LWC, Salesforce metadata, and Salesforce CLI deployments.
 
-- Detects common Salesforce file contexts such as Apex, Apex tests, triggers, SOQL, LWC/Aura paths, and deployment metadata
-- Tracks active coding time and idle periods
-- Shows contextual encouragement based on the active Salesforce workload
-- Keeps a small local history of session activity
-- Shows a persistent status-bar companion with brief messages and quick actions
-- Reports Salesforce source diagnostics and can navigate directly to the affected file and line
-- Operates without external AI services or cloud dependencies
+## ✨ Features
 
-## Current implementation status
+### 🧑‍💻 Salesforce-aware motivation
 
-The project is currently at the core reliability and local UX stage.
+Recognizes common Salesforce development contexts, including:
 
-Implemented features include:
-- extension activation and command registration
-- start/stop session lifecycle
-- idle and active session tracking
-- local history storage using VS Code global state
-- persistent status-bar companion and actionable VS Code notifications
-- Salesforce context detection for key file patterns
-- deployment workflow prompts and checklist guidance
-- automated tests for core logic and session transitions
+- Apex classes
+- Apex tests
+- Triggers
+- SOQL-related work
+- LWC and Aura paths
+- Salesforce metadata
+- Deployment workflows
 
-## Privacy and constraints
+### 🐾 Interactive mascot companion
 
-This extension is intentionally local-first and does not require:
-- paid APIs
-- external services
-- AI integrations
-- telemetry
-- backend infrastructure
+The Motivator lives in VS Code's Secondary Sidebar and reacts to your coding activity with different mascot states.
 
-It stores small local session information in VS Code state only.
+The companion can respond to:
 
-## Installation and local development
+- Active development
+- Focused coding
+- Successful deployments
+- Deployment failures
+- Idle periods
+- Session activity
+
+### 🚀 Salesforce CLI deployment awareness
+
+When you run supported Salesforce CLI deployment commands in the VS Code integrated terminal, the Motivator can recognize the deployment result and react accordingly.
+
+Successful deployments can trigger a success reaction, while genuine deployment failures can trigger a failure reaction with contextual information.
+
+### ⏱️ Coding session tracking
+
+Tracks active and idle periods to provide contextual motivation throughout your development session.
+
+### 💾 Local-first
+
+The extension is designed to operate locally.
+
+It does not require:
+
+- AI services
+- Paid APIs
+- Backend infrastructure
+- Telemetry
+- External databases
+
+Session information is stored using VS Code's local extension state.
+
+## 🚀 Getting Started
+
+1. Install **Salesforce Coding Motivator** from the VS Code Marketplace.
+2. Open a Salesforce project.
+3. Open the **Motivator** view in the VS Code Secondary Sidebar.
+4. Start your coding session.
+5. Work normally with your Salesforce project and Salesforce CLI.
+
+## ⚙️ Commands
+
+Available commands include:
+
+- Salesforce Coding Motivator: Start
+- Salesforce Coding Motivator: Stop
+- Salesforce Coding Motivator: Show Old Chat
+- Salesforce Coding Motivator: Show Session Summary
+- Salesforce Coding Motivator: Clear Chat History
+- Salesforce Coding Motivator: Open Companion
+- Salesforce Coding Motivator: Trigger Deployment Message
+- Salesforce Coding Motivator: Show Deployment Checklist
+- Salesforce Coding Motivator: Deploy Active Source and Monitor
+
+## ⚙️ Configuration
+
+Settings are available under `salesforceCodingMotivator`.
+
+| Setting | Description |
+|---|---|
+| `enabled` | Enable or disable motivational notifications |
+| `debugTestMode` | Use shorter thresholds for local testing |
+| `messageCooldownMinutes` | Cooldown between repeated motivational messages |
+| `idleThresholdMinutes` | Time before the session is considered idle |
+| `breakReminderMinutes` | Idle time before a break reminder |
+
+## 🔒 Privacy
+
+Salesforce Coding Motivator is designed as a local-first extension.
+
+It does not require an external AI service, telemetry backend, or cloud database for its motivational features.
+
+It stores small local session information using VS Code extension state.
+
+## ⚠️ Limitations
+
+Salesforce context detection is heuristic and based on local project and file information.
+
+Deployment monitoring depends on supported Salesforce CLI commands executed through the VS Code integrated terminal and does not attempt to monitor every Salesforce operation.
+
+The extension does not automatically access Salesforce org data.
+
+## 🛠️ Local Development
+
+For local development:
 
 ```bash
 npm install
@@ -45,42 +115,21 @@ npm run compile
 npm test
 ```
 
-## Run in VS Code
+To run the extension from source in VS Code:
 
-1. Open this project in VS Code.
+1. Open the project in VS Code.
 2. Press `F5` to launch the Extension Development Host.
-3. Open a Salesforce-related file or use the command palette.
-4. Run one of the available commands:
-   - Salesforce Coding Motivator: Start
-   - Salesforce Coding Motivator: Stop
-   - Salesforce Coding Motivator: Show Old Chat
-   - Salesforce Coding Motivator: Show Session Summary
-   - Salesforce Coding Motivator: Open Companion
-   - Salesforce Coding Motivator: Trigger Deployment Message
-   - Salesforce Coding Motivator: Show Deployment Checklist
+3. Open a Salesforce-related file or use the Command Palette.
 
-## Configuration
+## 📋 License
 
-The extension exposes a small set of settings under the namespace `salesforceCodingMotivator`:
+See the included `LICENSE` file for the terms governing use, modification, and redistribution.
 
-- `enabled` — enable or disable motivational notifications
-- `debugTestMode` — shorter thresholds for local validation
-- `messageCooldownMinutes` — cooldown between repeated messages
-- `idleThresholdMinutes` — minutes of inactivity before session is marked idle
-- `breakReminderMinutes` — reminder interval for idle breaks
+## 🗺️ Roadmap
 
-## Known limitations
+Future improvements may include:
 
-- Context detection is heuristic and based on local file paths and project structure
-- It does not claim to monitor every Salesforce operation with guaranteed certainty
-- VS Code's extension API does not allow arbitrary image overlays over the editor; the companion currently uses the status bar and native notifications rather than a floating mascot image
-- It is not yet a public Marketplace release
-- It does not attempt to execute Salesforce CLI commands or access org data automatically
-
-## Roadmap
-
-- strengthen the core session lifecycle and guardrails
-- improve context detection reliability
-- review mascot and companion UX direction
-- refine the persistent companion and notification experience
-- prepare packaging and public release documentation
+- richer Salesforce context detection
+- additional mascot interactions
+- further companion UX improvements
+- additional deployment workflow support
