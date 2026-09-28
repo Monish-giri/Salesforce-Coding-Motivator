@@ -669,6 +669,7 @@ function showCompanionMessage(message: string, durationMs = 8_000): void {
   companionMessageTimer = setTimeout(() => {
     companionMessage = '';
     companionMessageTimer = undefined;
+    if (terminalDeploymentState === 'success') terminalDeploymentState = null;
     updateStatusBar();
     updateCompanionView();
   }, durationMs);
@@ -726,12 +727,12 @@ function handleContextChange(document: vscode.TextDocument | undefined): void {
 
 function isSalesforceDeployCommand(commandLine: string): boolean {
   // Match Salesforce CLI deploy commands only; ignore unrelated terminal commands.
-  const normalized = commandLine.trim().replace(/^&\\s*/, '');
-  return /(?:^|[\\s;&|])(?:sf|sfdx)(?:\\.cmd)?\\s+(?:(?:project\\s+deploy\\s+(?:start|validate|quick|resume))|(?:deploy\\s+metadata)|(?:force:source:deploy)|(?:force:mdapi:deploy))(?:\\s|$)/i.test(normalized);
+  const normalized = commandLine.trim().replace(/^&\s*/, '');
+  return /(?:^|[\s;&|])(?:sf|sfdx)(?:\.cmd)?\s+(?:(?:project\s+deploy\s+(?:start|validate|quick|resume))|(?:deploy\s+metadata)|(?:force:source:deploy)|(?:force:mdapi:deploy))(?:\s|$)/i.test(normalized);
 }
 
 function summarizeTerminalDeploymentFailure(output: string, exitCode: number | undefined): string {
-  const clean = output.replace(/\\x1B\\[[0-?]*[ -/]*[@-~]/g, '').trim();
+  const clean = output.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
   try {
     const parsed = JSON.parse(clean) as {
       message?: string;
@@ -756,7 +757,7 @@ function summarizeTerminalDeploymentFailure(output: string, exitCode: number | u
     // Normal human-readable Salesforce CLI output is not JSON.
   }
 
-  const relevantLine = clean.split(/\\r?\\n/)
+  const relevantLine = clean.split(/\r?\n/)
     .map((line) => line.trim())
     .find((line) => /(?:error|failed|failure|cannot|invalid|timed out)/i.test(line));
   return (relevantLine || `Salesforce CLI exited with code ${exitCode ?? 'unknown'}.`).slice(0, 220);
