@@ -137,5 +137,6 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-  "license": "SEE LICENSE IN LICENSE"
+  "license": "SEE LICENSE IN LICENSE",
+  "icon": "media/icon.png"
 }
