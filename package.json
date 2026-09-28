@@ -138,5 +138,9 @@
     "onStartupFinished"
   ],
   "license": "SEE LICENSE IN LICENSE",
-  "icon": "media/icon.png"
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#111827",
+    "theme": "dark"
+  }
 }
